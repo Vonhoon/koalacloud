@@ -6,125 +6,147 @@
   <title>{{ app_name }} — Drive</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
-    .glass { backdrop-filter: blur(10px); background: rgba(2,6,23,.65); }
-    .ctx { position:absolute; z-index:50; min-width:12rem; background:#0f172a; border:1px solid #334155; border-radius:.5rem; display:none; }
-    .ctx a{ display:block; padding:.6rem .8rem; color:#e2e8f0; }
-    .ctx a:hover{ background:#1e293b; }
-    .drop-overlay{ position:fixed; inset:0; display:none; align-items:center; justify-content:center; z-index:40;
-      background: rgba(14,22,40,.55); border:3px dashed rgba(34,211,238,.7); }
+    :root{
+      --border:#e5e7eb; --muted:#f8fafc; --ink:#0f172a; --ink-2:#334155; --accent:#0ea5e9; --accent-2:#0284c7; --ok:#16a34a; --warn:#dc2626;
+    }
+    html,body{ font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, "Helvetica Neue", Arial, system-ui, sans-serif; color:var(--ink); }
+    .card { background:#fff; border:1px solid var(--border); border-radius:14px; }
+    .shadow-soft{ box-shadow: 0 10px 30px rgba(0,0,0,.06); }
+    .shadow-subtle{ box-shadow: 0 6px 18px rgba(0,0,0,.04); }
+    .row:hover{ background: var(--muted); }
+    .tile:hover{ transform: translateY(-2px); background: #fff; }
+    .ctx{ position:absolute; z-index:60; min-width:14rem; background:#fff; border:1px solid var(--border); border-radius:12px; display:none; overflow:hidden; box-shadow: 0 16px 40px rgba(0,0,0,.12);}
+    .ctx a{ display:block; padding:.7rem .9rem; color:var(--ink); font-size:.95rem; }
+    .ctx a:hover{ background:var(--muted); }
+    .badge{ position:absolute; top:.55rem; left:.55rem; width:1.25rem; height:1.25rem; border-radius:.45rem; background:var(--accent); color:white; font-size:.85rem; display:flex; align-items:center; justify-content:center; }
+    .row .badge{ position:relative; top:auto; left:auto; margin-right:.6rem; }
+    .selected{ outline:2px solid var(--accent); outline-offset:-2px; background: #f0f9ff; }
+    .kebab{ display:none !important; }
+    .drop-overlay{ position:fixed; inset:0; display:none; align-items:center; justify-content:center; z-index:50; background: rgba(2,6,23,.25); border:3px dashed rgba(2,132,199,.5);}
     .drop-overlay.show{ display:flex; }
-    .kebab { display: none !important; }
-    .tile:hover { transform: translateY(-2px); }
-    .shadow-soft { box-shadow: 0 8px 24px rgba(0,0,0,.35);}
+    .heading{ letter-spacing:-.01em; }
+    .btn{ border:1px solid var(--border); background:#fff; }
+    .btn:hover{ background: var(--muted); }
+    .btn-primary{ background: var(--accent); color:white; border-color:var(--accent); }
+    .btn-primary:hover{ background: var(--accent-2); border-color:var(--accent-2); }
+    .btn-danger{ background: var(--warn); color:white; border-color:var(--warn); }
+    .input{ background:#fff; border:1px solid var(--border); border-radius:12px; }
+    .disabled{ opacity:.45; pointer-events:none; cursor:not-allowed; }
   </style>
 </head>
-<body class="bg-gradient-to-br from-slate-950 via-slate-900 to-slate-900 text-slate-100 min-h-screen">
+<body class="bg-white">
 
   <!-- Header -->
-  <header class="glass sticky top-0 z-40 shadow-soft">
+  <header class="card shadow-soft sticky top-0 z-40">
     <div class="max-w-6xl mx-auto px-4 py-3 flex items-center gap-3">
-      <img src="{{ url_for('static', filename='koala.jpg') }}" alt="koala" class="h-10 w-10 rounded-full border border-slate-700">
+      <img src="{{ url_for('static', filename='koala.jpg') }}" alt="koala" class="h-10 w-10 rounded-full border border-[var(--border)] shadow-subtle">
       <div class="flex-1">
-        <h1 class="text-xl md:text-2xl font-bold text-cyan-400 leading-tight">{{ app_name }}</h1>
-        <p class="text-xs md:text-sm text-slate-400">Private web drive with share links</p>
+        <h1 class="text-xl md:text-2xl font-semibold text-[var(--ink)] leading-tight heading">{{ app_name }}</h1>
+        <p class="text-xs md:text-sm text-[var(--ink-2)]/70">Private web drive with share links</p>
       </div>
-      <button id="btn-logout" class="hidden md:inline px-3 py-2 rounded bg-slate-800 border border-slate-700 hover:bg-slate-700">
-        Logout
-      </button>
+      <button id="btn-logout" class="hidden md:inline px-3 py-1.5 rounded-xl btn">Logout</button>
     </div>
   </header>
 
-  <!-- Login overlay -->
+  <!-- Login -->
   <div id="login" class="min-h-[70vh] md:min-h-[75vh] flex items-center justify-center px-4">
-    <div class="glass p-6 md:p-8 rounded-2xl w-full max-w-sm border border-slate-800 shadow-soft">
-      <h2 class="text-2xl font-bold mb-6 text-cyan-400 text-center">Sign in</h2>
+    <div class="card p-6 md:p-8 rounded-2xl w-full max-w-sm shadow-soft">
+      <h2 class="text-2xl font-semibold mb-6 text-[var(--ink)] text-center heading">Sign in</h2>
       <form id="login-form" class="space-y-4">
         <div>
-          <label class="block text-sm mb-1 text-slate-300">Username</label>
-          <input id="u" class="w-full bg-slate-800/70 border border-slate-700 rounded-lg p-2.5 focus:outline-none focus:ring-2 focus:ring-cyan-600" required>
+          <label class="block text-sm mb-1 text-[var(--ink-2)]">Username</label>
+          <input id="u" autocomplete="username" class="w-full input p-2.5 focus:outline-none focus:ring-2 focus:ring-[var(--accent)]">
         </div>
         <div>
-          <label class="block text-sm mb-1 text-slate-300">Password</label>
-          <input id="p" type="password" class="w-full bg-slate-800/70 border border-slate-700 rounded-lg p-2.5 focus:outline-none focus:ring-2 focus:ring-cyan-600" required>
+          <label class="block text-sm mb-1 text-[var(--ink-2)]">Password</label>
+          <input id="p" type="password" autocomplete="current-password" class="w-full input p-2.5 focus:outline-none focus:ring-2 focus:ring-[var(--accent)]">
         </div>
-        <button class="w-full bg-gradient-to-r from-cyan-600 to-emerald-600 hover:from-cyan-700 hover:to-emerald-700 rounded-lg p-2.5 font-semibold">
+        <button class="w-full btn-primary rounded-xl p-2.5 font-semibold transition-colors">
           Continue
         </button>
-        <p id="err" class="text-red-400 text-xs mt-2 text-center"></p>
+        <p id="err" class="text-[var(--warn)] text-xs mt-2 text-center"></p>
       </form>
     </div>
   </div>
 
-  <!-- Drive UI -->
+  <!-- Drive -->
   <main id="drive" class="hidden max-w-6xl mx-auto p-4 md:p-6 space-y-4">
 
     <!-- Toolbar -->
-    <section class="glass rounded-2xl p-3 md:p-4 border border-slate-800 shadow-soft">
+    <section class="card rounded-2xl p-3 md:p-4 shadow-soft">
       <div class="flex flex-col md:flex-row md:items-center gap-3">
-        <!-- Breadcrumbs -->
         <nav id="crumbs" class="flex items-center flex-wrap text-sm gap-x-2"></nav>
-
         <div class="flex-1"></div>
-
-        <!-- Search -->
         <div class="flex items-center gap-2">
           <div class="relative">
-            <input id="search" placeholder="Search in folder…" class="w-48 md:w-64 bg-slate-800/70 border border-slate-700 rounded-lg pl-9 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-600">
-            <span class="absolute left-2 top-1.5 opacity-70">🔎</span>
+            <input id="search" placeholder="Search in folder…" class="w-48 md:w-64 input pl-9 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--accent)]">
+            <span class="absolute left-2 top-1.5 opacity-60">🔎</span>
           </div>
-          <!-- View toggle -->
-          <div class="inline-flex rounded-lg border border-slate-700 overflow-hidden">
-            <button id="view-grid" class="px-3 py-2 text-sm bg-slate-800/70 hover:bg-slate-700">Grid</button>
-            <button id="view-list" class="px-3 py-2 text-sm bg-slate-800/70 hover:bg-slate-700">List</button>
+          <div class="inline-flex rounded-xl border border-[var(--border)] overflow-hidden">
+            <button id="view-grid" class="px-3 py-2 text-sm btn">Grid</button>
+            <button id="view-list" class="px-3 py-2 text-sm btn">List</button>
           </div>
         </div>
       </div>
 
-      <!-- Actions -->
       <div class="mt-3 flex flex-wrap items-center gap-2">
-        <button id="btn-up" class="px-3 py-2 rounded-lg bg-sky-600 hover:bg-sky-700">⬆ Up</button>
-        <button id="btn-mkdir" class="px-3 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700">＋ New Folder</button>
-        <label class="px-3 py-2 rounded-lg bg-cyan-700 hover:bg-cyan-800 cursor-pointer">
+        <button id="btn-up" class="px-3 py-2 rounded-xl btn">⬆ Up</button>
+        <button id="btn-mkdir" class="px-3 py-2 rounded-xl btn">＋ New Folder</button>
+        <label class="px-3 py-2 rounded-xl btn cursor-pointer">
           ＋ Add files<input id="file" type="file" class="hidden" multiple>
         </label>
+
+        <!-- Selection actions -->
+        <div id="sel-actions" class="hidden flex-wrap gap-2 items-center ml-auto">
+          <span id="sel-count" class="text-sm px-2 py-1 rounded-lg input"></span>
+          <button id="sel-dl"   class="px-3 py-2 rounded-xl btn">Download Each</button>
+          <button id="sel-mv"   class="px-3 py-2 rounded-xl btn">Move…</button>
+          <button id="sel-cp"   class="px-3 py-2 rounded-xl btn">Copy…</button>
+          <button id="sel-del"  class="px-3 py-2 rounded-xl btn-danger">Delete</button>
+          <button id="sel-clear" class="px-3 py-2 rounded-xl btn">Clear</button>
+        </div>
+
         <span id="cwd" class="text-xs md:text-sm opacity-80 ml-auto"></span>
-        <button id="btn-logout-mobile" class="md:hidden px-3 py-2 rounded-lg bg-slate-800 border border-slate-700">Logout</button>
+        <button id="btn-logout-mobile" class="md:hidden px-3 py-2 rounded-xl btn">Logout</button>
       </div>
     </section>
 
     <!-- File area -->
-    <section id="list" class="rounded-2xl border border-slate-800 glass shadow-soft p-0"></section>
+    <section id="list" class="rounded-2xl card shadow-soft p-0"></section>
 
     <!-- Upload queue -->
     <section id="queue-wrap" class="fixed right-3 bottom-3 left-3 md:left-auto md:w-96 space-y-2 pointer-events-none"></section>
   </main>
 
-  <!-- Right-click / Kebab context -->
+  <!-- Context menu -->
   <div id="ctx" class="ctx"></div>
 
   <!-- Drag overlay -->
   <div id="dropzone" class="drop-overlay">
-    <div class="border-2 border-dashed border-cyan-400/70 rounded-2xl px-8 py-10 text-center bg-slate-900/60">
+    <div class="card px-8 py-10 text-center shadow-soft">
       <div class="text-2xl mb-2">Drop files to upload</div>
-      <div class="text-slate-400">They’ll be uploaded to the current folder</div>
+      <div class="text-[var(--ink-2)]">They’ll be uploaded to the current folder</div>
     </div>
   </div>
 
   <!-- Preview modal -->
-  <div id="preview" class="hidden fixed inset-0 bg-black/70 z-50 items-center justify-center">
-    <div class="bg-slate-900 rounded-xl max-w-4xl w-[92vw] max-h-[90vh] overflow-auto p-4 border border-slate-800 shadow-soft">
+  <div id="preview" class="hidden fixed inset-0 bg-black/50 z-50 items-center justify-center">
+    <div class="card rounded-xl max-w-4xl w-[92vw] max-h-[90vh] overflow-auto p-4 shadow-soft">
       <div class="flex justify-between items-center mb-3">
-        <div id="preview-title" class="font-semibold text-slate-200 truncate"></div>
-        <button id="preview-close" class="px-3 py-1 rounded bg-red-600 hover:bg-red-700 text-sm">Close</button>
+        <div id="preview-title" class="font-medium truncate"></div>
+        <button id="preview-close" class="px-3 py-1.5 rounded-lg btn">Close</button>
       </div>
       <div id="preview-body" class="text-center"></div>
     </div>
   </div>
 
 <script>
+/* ===== Basics ===== */
 const loginDiv = document.getElementById('login');
 const driveDiv = document.getElementById('drive');
 const errEl    = document.getElementById('err');
+let clickTimer = null;
+const CLICK_DELAY = 300; // ms
 
 async function api(url, opts){
   const r = await fetch(url, opts);
@@ -134,10 +156,23 @@ async function api(url, opts){
   return j;
 }
 
+const params = new URLSearchParams(location.search);
+const startPath = params.get('path') || '/';
+
+let dlFrame = null;
+function ensureDlFrame(){
+  if (!dlFrame) {
+    dlFrame = document.createElement('iframe');
+    dlFrame.style.display = 'none';
+    document.body.appendChild(dlFrame);
+  }
+}
+
+
 async function checkStatus(){
   try{
     const s = await api('/auth/status');
-    if(s.logged_in){ loginDiv.classList.add('hidden'); driveDiv.classList.remove('hidden'); load('/'); }
+    if(s.logged_in){ loginDiv.classList.add('hidden'); driveDiv.classList.remove('hidden'); load(startPath || '/', false); }
   }catch{}
 }
 checkStatus();
@@ -148,7 +183,7 @@ document.getElementById('login-form').addEventListener('submit', async (e)=>{
   const password = document.getElementById('p').value;
   try{
     await api('/auth/login', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({username,password})});
-    loginDiv.classList.add('hidden'); driveDiv.classList.remove('hidden'); load('/');
+    loginDiv.classList.add('hidden'); driveDiv.classList.remove('hidden'); load(startPath || '/', false);
   }catch(ex){ errEl.textContent = ex.message; }
 });
 
@@ -156,7 +191,7 @@ const logout = async ()=>{ await api('/auth/logout', {method:'POST'}); location.
 document.getElementById('btn-logout').onclick = logout;
 document.getElementById('btn-logout-mobile').onclick = logout;
 
-// ---------- Drive UI ----------
+/* ===== Drive UI ===== */
 const listEl = document.getElementById('list');
 const cwdEl  = document.getElementById('cwd');
 const crumbsEl = document.getElementById('crumbs');
@@ -164,10 +199,23 @@ const ctx    = document.getElementById('ctx');
 const queueWrap = document.getElementById('queue-wrap');
 const searchEl = document.getElementById('search');
 
+const selWrap = document.getElementById('sel-actions');
+const selCount= document.getElementById('sel-count');
+const selDl   = document.getElementById('sel-dl');
+const selMv   = document.getElementById('sel-mv');
+const selCp   = document.getElementById('sel-cp');
+const selDel  = document.getElementById('sel-del');
+const selClear= document.getElementById('sel-clear');
+
 let currentPath = '/';
 let currentItems = [];
-let ctxTarget = null;
 let viewMode = 'grid'; // 'grid' | 'list'
+let ctxTarget = null;
+
+let selected = new Set();
+let lastAnchorIndex = null;
+
+const isTouch = ('ontouchstart' in window) || window.matchMedia('(pointer: coarse)').matches;
 
 document.getElementById('view-grid').onclick = ()=>{ viewMode='grid'; renderList(); };
 document.getElementById('view-list').onclick = ()=>{ viewMode='list'; renderList(); };
@@ -178,7 +226,7 @@ function buildCrumbs(p){
   const parts = (p||'/').split('/').filter(Boolean);
   crumbsEl.innerHTML='';
   const push = (html)=>{ const span=document.createElement('span'); span.innerHTML=html; crumbsEl.appendChild(span); };
-  push(`<a class="text-cyan-400 hover:underline" data-jump="/">Home</a>`);
+  push(`<a class="text-[var(--accent-2)] hover:underline" data-jump="/">Home</a>`);
   let acc = '';
   parts.forEach((seg)=>{
     acc += '/'+seg;
@@ -186,100 +234,166 @@ function buildCrumbs(p){
     push(`<a class="hover:underline" data-jump="${acc}">${seg}</a>`);
   });
   crumbsEl.querySelectorAll('[data-jump]').forEach(a=>{
-    a.addEventListener('click', (e)=>{ e.preventDefault(); load(a.getAttribute('data-jump')); });
+    a.addEventListener('click', (e)=>{ e.preventDefault(); clearSelection(); load(a.getAttribute('data-jump')); });
   });
 }
 
 searchEl.addEventListener('input', ()=> renderList());
 
-async function load(path){
+async function load(path, push=true){
   const j = await api('/api/list?path='+encodeURIComponent(path||''));
   currentPath = (j.type==='dir' ? j.path : path);
   cwdEl.textContent = 'Path: ' + (currentPath||'/');
   buildCrumbs(currentPath||'/');
+
   if(j.type==='file'){
-    window.open('/api/download?path='+encodeURIComponent(path),'_blank');
+    // NEVER auto-download on click; only double-click / open via code path
     return;
   }
   currentItems = j.items || [];
+  selected.clear(); updateSelUI();
+
   renderList();
+
+  if (push) {
+    const qs = currentPath==='/' ? '' : '?path='+encodeURIComponent(currentPath);
+    history.pushState({path: currentPath}, '', qs);
+  }
 }
 
-function rowTemplate(it){
+function downloadSelectedSequential(){
+  const items = filteredItems();
+  const paths = currentSelectionArray()
+    .map(p => ({ p, it: items.find(i=>i.path===p) }))
+    .filter(x => x.it && x.it.type === 'file')
+    .map(x => x.p);
+
+  if (paths.length === 0) return;
+
+  // Single file: <a download> is snappier
+  if (paths.length === 1) {
+    const a = document.createElement('a');
+    a.href = '/api/download?path=' + encodeURIComponent(paths[0]);
+    a.download = '';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    return;
+  }
+
+  // Multiple files: hidden iframe, staggered
+  ensureDlFrame();
+  let i = 0;
+  const step = () => {
+    if (i >= paths.length) return;
+    dlFrame.src = '/api/download?path=' + encodeURIComponent(paths[i++]);
+    setTimeout(step, 700); // small delay per file
+  };
+  step();
+}
+
+function filteredItems(){
+  const q = searchEl.value?.toLowerCase().trim() || '';
+  return q ? currentItems.filter(it => it.name.toLowerCase().includes(q)) : currentItems;
+}
+
+/* === TEMPLATES (badge only when selected) === */
+function rowTemplate(it, idx){
   const d = new Date(it.mtime*1000).toLocaleString();
-  return `<div class="row grid grid-cols-12 px-3 py-2 cursor-default hover:bg-slate-800/60" data-path="${it.path}" data-type="${it.type}">
+  const isSel = selected.has(it.path);
+  return `<div class="row grid grid-cols-12 px-3 py-2 cursor-default ${isSel?'selected':''}" data-index="${idx}" data-path="${it.path}" data-type="${it.type}">
     <div class="col-span-7 flex items-center gap-2 truncate">
+      ${isSel?'<span class="badge">✓</span>':''}
       ${it.type==='dir'?'📁':'📄'} <span class="truncate">${it.name}</span>
     </div>
     <div class="col-span-2">${it.type==='dir'?'—':fmtBytes(it.size)}</div>
     <div class="col-span-3 flex items-center justify-between">
-      <span>${d}</span>
-      <button class="kebab rounded hover:bg-slate-700 flex items-center justify-center" data-menu="${it.path}">⋮</button>
+      <span class="text-[var(--ink-2)]/70">${d}</span>
+      <button class="kebab rounded flex items-center justify-center" data-menu="${it.path}">⋮</button>
     </div>
   </div>`;
 }
 
-function tileTemplate(it){
+function tileTemplate(it, idx){
   const d = new Date(it.mtime*1000).toLocaleDateString();
   const icon = it.type==='dir'?'📁':'📄';
-  return `<div class="tile group rounded-xl border border-slate-800 glass p-3 shadow-soft hover:border-slate-700 transition"
-              data-path="${it.path}" data-type="${it.type}">
+  const isSel = selected.has(it.path);
+  return `<div class="tile relative group rounded-2xl card p-3 shadow-subtle transition ${isSel?'selected':''}"
+              data-index="${idx}" data-path="${it.path}" data-type="${it.type}">
+    ${isSel?'<div class="badge">✓</div>':''}
     <div class="flex items-start justify-between">
       <div class="text-3xl">${icon}</div>
-      <button class="kebab rounded hover:bg-slate-700 flex items-center justify-center" data-menu="${it.path}">⋮</button>
+      <button class="kebab rounded flex items-center justify-center" data-menu="${it.path}">⋮</button>
     </div>
     <div class="mt-2 font-medium truncate" title="${it.name}">${it.name}</div>
-    <div class="text-xs text-slate-400 mt-1">${it.type==='dir'?'Folder':fmtBytes(it.size)} • ${d}</div>
+    <div class="text-xs text-[var(--ink-2)]/70 mt-1">${it.type==='dir'?'Folder':fmtBytes(it.size)} • ${d}</div>
   </div>`;
 }
 
 function renderList(){
-  const q = searchEl.value?.toLowerCase().trim() || '';
-  const items = q ? currentItems.filter(it => it.name.toLowerCase().includes(q)) : currentItems;
-
+  const items = filteredItems();
   if(viewMode==='list'){
-    let html = `<div class="grid grid-cols-12 bg-slate-800/60 px-3 py-2 text-sm border-b border-slate-800">
+    let html = `<div class="grid grid-cols-12 bg-[var(--muted)] px-3 py-2 text-sm border-b border-[var(--border)]">
       <div class="col-span-7">Name</div><div class="col-span-2">Size</div><div class="col-span-3">Modified</div></div>`;
-    html += items.map(rowTemplate).join('');
+    html += items.map((it,i)=>rowTemplate(it,i)).join('');
     listEl.innerHTML = html;
   } else {
-    const grid = items.map(tileTemplate).join('');
+    const grid = items.map((it,i)=>tileTemplate(it,i)).join('');
     listEl.innerHTML = `<div class="p-3 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">${grid}</div>`;
   }
 }
 
-// Double-click open
-listEl.addEventListener('dblclick', (e)=>{
-  const card = e.target.closest('[data-path]'); if(!card) return;
-  const p = card.dataset.path; const t = card.dataset.type;
-  if(t==='dir') load(p); else openPreview(p);
-});
+function itemFromEvent(e){
+  const el = e.target.closest('[data-path]');
+  if(!el) return null;
+  const idx = Number(el.dataset.index);
+  const it  = filteredItems()[idx];
+  return { el, idx, item: it };
+}
 
-// Kebab menu click
-listEl.addEventListener('click', (e)=>{
-  const kb = e.target.closest('[data-menu]'); if(!kb) return;
-  const path = kb.dataset.menu;
-  const row = e.target.closest('[data-path]');
-  const r = row.getBoundingClientRect();
-  openCtx(path, r.right-12, r.top+window.scrollY+8, row.dataset.type);
-});
+/* ===== Selection & UI ===== */
+function updateSelUI(){
+  const n = selected.size;
+  if(n>0){
+    selWrap.classList.remove('hidden');
+    selCount.textContent = `${n} selected`;
+  } else {
+    selWrap.classList.add('hidden');
+    selCount.textContent = '';
+  }
+  const items = filteredItems();
+  const hasDir = [...selected].some(p => (items.find(i=>i.path===p)?.type === 'dir'));
+  selDl.classList.toggle('disabled', selected.size === 0 || hasDir);
 
-// ✅ RIGHT-CLICK context menu (fixed)
-listEl.addEventListener('contextmenu', (e)=>{
-  e.preventDefault();
-  const row = e.target.closest('[data-path]');
-  if(!row){ ctx.style.display='none'; return; }
-  openCtx(row.dataset.path, e.pageX, e.pageY, row.dataset.type);
-});
+}
+function clearSelection(){ selected.clear(); updateSelUI(); renderList(); }
+function selectToggle(path){ selected.has(path) ? selected.delete(path) : selected.add(path); updateSelUI(); }
+function selectRange(fromIdx, toIdx){
+  const items = filteredItems();
+  const [a,b] = fromIdx < toIdx ? [fromIdx,toIdx] : [toIdx,fromIdx];
+  for(let i=a;i<=b;i++){ selected.add(items[i].path); }
+  updateSelUI();
+}
 
+/* ===== Context Menu ===== */
 function openCtx(path, x, y, type){
+  // if something else is selected and target not in selection, make target the selection
+  if(selected.size > 0 && !selected.has(path)){ selected.clear(); selected.add(path); updateSelUI(); renderList(); }
+
+  const items = filteredItems();
+  const selPaths = selected.size ? [...selected] : [path];
+  const hasDir = selPaths.some(p => {
+    const it = items.find(i=>i.path===p);
+    return it && it.type === 'dir';
+  });
+
   ctxTarget = { path, type };
   ctx.innerHTML = `
-    <a onclick="downloadItem()">Download</a>
     <a onclick="openItem()">Open / Preview</a>
+    <a ${hasDir ? 'class="disabled" aria-disabled="true"' : ''} onclick="downloadSelectedSequential()">Download</a>
     <a onclick="shareItem()">Share…</a>
     <a onclick="propsItem()">Properties</a>
-    <hr style="border-color:#334155">
+    <hr style="border:none;border-top:1px solid var(--border)">
     <a onclick="mkdirHere()">New Folder</a>
     <a onclick="moveItem()">Move…</a>
     <a onclick="copyItem()">Copy…</a>
@@ -289,26 +403,109 @@ function openCtx(path, x, y, type){
   ctx.style.display='block';
 }
 
-// Close ctx only when clicking outside it
 document.addEventListener('click', (e)=>{ if(!ctx.contains(e.target)) ctx.style.display='none'; });
 
-// ---- Actions
-function openItem(){ if(!ctxTarget) return; if(ctxTarget.type==='dir') load(ctxTarget.path); else openPreview(ctxTarget.path); }
-async function propsItem(){ const j=await api('/api/properties?path='+encodeURIComponent(ctxTarget.path)); alert(`${j.type.toUpperCase()}\nName: ${j.name}\nSize: ${fmtBytes(j.size)}\nMIME: ${j.mime||''}\nModified: ${new Date(j.mtime*1000)}`); }
-async function mkdirHere(){ const name=prompt('Folder name:'); if(!name) return; await api('/api/mkdir',{method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({parent: currentPath, name})}); load(currentPath); }
-async function deleteItem(){ if(!confirm('Delete this item?')) return; await api('/api/delete',{method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({path: ctxTarget.path})}); load(currentPath); }
-async function moveItem(){ const dst=prompt('Move to path (relative to root):', currentPath); if(!dst) return; await api('/api/move',{method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({src: ctxTarget.path, dst})}); load(currentPath); }
-async function copyItem(){ const dst=prompt('Copy to path (relative to root):', currentPath); if(!dst) return; await api('/api/copy',{method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({src: ctxTarget.path, dst})}); load(currentPath); }
-async function shareItem(){ const hours=prompt('Expires in hours (0 = never):','0'); const j=await api('/api/share',{method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({path: ctxTarget.path, expires_hours: Number(hours||0)})}); const url = new URL(j.url, window.location.origin).toString(); navigator.clipboard.writeText(url).catch(()=>{}); alert('Share link copied:\n'+url); }
-function downloadItem(){
-  if(!ctxTarget || ctxTarget.type==='dir') return; // download only files
-  const url = '/api/download?path=' + encodeURIComponent(ctxTarget.path);
-  window.open(url, '_blank');
+/* ===== Desktop interactions ===== */
+listEl.addEventListener('dblclick', (e)=>{
+  if (isTouch) return;
+  if (clickTimer) { clearTimeout(clickTimer); clickTimer = null; }
+  const h = itemFromEvent(e); if (!h) return;
+  if (h.item.type === 'dir') load(h.item.path); else openPreview(h.item.path);
+});
+// Kebab -> context
+listEl.addEventListener('click', (e)=>{
+  if (isTouch) return;
+  // ignore clicks on kebab or context UI
+  if (e.target.closest('[data-menu]')) return;
+
+  const h = itemFromEvent(e); if (!h) return;
+
+  if (clickTimer) clearTimeout(clickTimer);
+  clickTimer = setTimeout(()=>{
+    if (e.shiftKey && lastAnchorIndex != null) {
+      selectRange(lastAnchorIndex, h.idx);
+    } else if (e.ctrlKey || e.metaKey) {
+      selectToggle(h.item.path);
+      lastAnchorIndex = h.idx;
+    } else {
+      selected.clear();
+      selected.add(h.item.path);
+      lastAnchorIndex = h.idx;
+    }
+    updateSelUI();
+    renderList();
+    clickTimer = null;
+  }, CLICK_DELAY);
+});
+
+// Right-click
+listEl.addEventListener('contextmenu', (e)=>{
+  e.preventDefault();
+  const h = itemFromEvent(e);
+  if(!h){ ctx.style.display='none'; return; }
+  openCtx(h.item.path, e.pageX, e.pageY, h.item.type);
+});
+
+/* ===== Touch: tap=select, second tap=open; long-press=context ===== */
+let lpTimer = null, lpFired = false;
+let lastTapPath = null, lastTapTime = 0;
+const TAP_OPEN_WINDOW = 600; // ms: second tap within this opens
+
+if (isTouch) {
+  // Tap: select; if same item tapped again quickly, open it
+  listEl.addEventListener('click', (e)=>{
+    if (lpFired) { lpFired = false; return; }
+    const h = itemFromEvent(e); if(!h) return; e.preventDefault();
+
+    const now = Date.now();
+    if (lastTapPath === h.item.path && (now - lastTapTime) <= TAP_OPEN_WINDOW) {
+      // second tap on same item → open
+      if(h.item.type==='dir') load(h.item.path); else openPreview(h.item.path);
+      lastTapPath = null; lastTapTime = 0;
+      return;
+    }
+    // first tap → select only
+    selected.clear(); selected.add(h.item.path); updateSelUI(); renderList();
+    lastTapPath = h.item.path; lastTapTime = now;
+  }, true);
+
+  // Long-press opens context and keeps selection
+  listEl.addEventListener('touchstart', (e)=>{
+    const h = itemFromEvent(e); if(!h) return;
+    const t = e.touches[0]; const x = t.clientX + window.scrollX, y = t.clientY + window.scrollY;
+    lpTimer = setTimeout(()=>{
+      lpFired = true;
+      if(!selected.has(h.item.path)) { selected.clear(); selected.add(h.item.path); updateSelUI(); renderList(); }
+      openCtx(h.item.path, x, y, h.item.type);
+    }, 500);
+  }, {passive:true});
+
+  ['touchend','touchcancel','touchmove'].forEach(evt=>{
+    listEl.addEventListener(evt, ()=>{ if (lpTimer) { clearTimeout(lpTimer); lpTimer = null; } }, {passive:true});
+  });
 }
 
-// ---------- Preview modal (no server change; uses Blob URLs) ----------
-const previewEl = document.getElementById('preview');
-const previewBody = document.getElementById('preview-body');
+
+/* ===== Keyboard niceties (desktop) ===== */
+document.addEventListener('keydown', (e)=>{
+  if(isTouch) return;
+  if(e.key === 'Enter' && selected.size === 1){
+    const p = [...selected][0];
+    const it = filteredItems().find(i=>i.path===p);
+    if(it){ if(it.type==='dir') load(p); else openPreview(p); }
+  }
+});
+
+/* ===== History ===== */
+window.addEventListener('popstate', (e)=>{
+  const p = e.state?.path || '/';
+  clearSelection();
+  load(p, false);
+});
+
+/* ===== Preview modal ===== */
+const previewEl    = document.getElementById('preview');
+const previewBody  = document.getElementById('preview-body');
 const previewTitle = document.getElementById('preview-title');
 const previewClose = document.getElementById('preview-close');
 
@@ -318,8 +515,9 @@ function showPreview(title, innerHTML){
   previewEl.classList.remove('hidden');
 }
 function closePreview(){
-  // revoke any object URLs inside the preview
-  previewBody.querySelectorAll('[data-bloburl]').forEach(n => { URL.revokeObjectURL(n.getAttribute('data-bloburl')); });
+  previewBody.querySelectorAll('[data-bloburl]').forEach(n => {
+    URL.revokeObjectURL(n.getAttribute('data-bloburl'));
+  });
   previewEl.classList.add('hidden');
   previewBody.innerHTML = '';
 }
@@ -328,52 +526,42 @@ previewEl.addEventListener('click', (e)=>{ if(e.target === previewEl) closePrevi
 document.addEventListener('keydown', (e)=>{ if(e.key === 'Escape') closePreview(); });
 
 async function blobURL(url){
-  const res = await fetch(url); // cookies/session included (same-origin)
+  const res = await fetch(url);
   const blob = await res.blob();
   const u = URL.createObjectURL(blob);
   return u;
 }
-
+function escapeHTML(str){
+  return str.replace(/[&<>"']/g, s=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[s]));
+}
 async function openPreview(path){
   const ext = (path.split('.').pop() || '').toLowerCase();
   const rawUrl = '/api/download?path='+encodeURIComponent(path);
-
   try{
     if(['png','jpg','jpeg','gif','webp','bmp','svg'].includes(ext)){
       const u = await blobURL(rawUrl);
-      showPreview(path, `<img src="${u}" data-bloburl="${u}" class="max-h-[80vh] mx-auto rounded">`);
-      return;
+      showPreview(path, `<img src="${u}" data-bloburl="${u}" class="max-h-[80vh] mx-auto rounded">`); return;
     }
     if(['mp4','webm','m4v','mov'].includes(ext)){
       const u = await blobURL(rawUrl);
-      showPreview(path, `<video src="${u}" data-bloburl="${u}" controls autoplay class="max-h-[80vh] mx-auto rounded"></video>`);
-      return;
+      showPreview(path, `<video src="${u}" data-bloburl="${u}" controls autoplay class="max-h-[80vh] mx-auto rounded"></video>`); return;
     }
     if(['mp3','wav','ogg','m4a','flac'].includes(ext)){
       const u = await blobURL(rawUrl);
-      showPreview(path, `<audio src="${u}" data-bloburl="${u}" controls autoplay class="w-full"></audio>`);
-      return;
+      showPreview(path, `<audio src="${u}" data-bloburl="${u}" controls autoplay class="w-full"></audio>`); return;
     }
     if(['txt','srt','ass','md','json','log','csv'].includes(ext)){
-      const res = await fetch(rawUrl);
-      const text = await res.text();
-      showPreview(path, `<pre class="whitespace-pre-wrap text-left text-sm bg-slate-800/60 p-3 rounded border border-slate-700">${escapeHTML(text)}</pre>`);
-      return;
+      const res = await fetch(rawUrl); const text = await res.text();
+      showPreview(path, `<pre class="whitespace-pre-wrap text-left text-sm bg-[var(--muted)] p-3 rounded border border-[var(--border)]">${escapeHTML(text)}</pre>`); return;
     }
-    // default: open in new tab (download)
     window.open(rawUrl,'_blank');
-  }catch(e){
-    // fallback to download on any error
-    window.open(rawUrl,'_blank');
-  }
+  }catch{ window.open(rawUrl,'_blank'); }
 }
-function escapeHTML(str){ return str.replace(/[&<>"']/g, s=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[s])); }
 
-// ---------- Uploads (queue + drag overlay) ----------
+/* ===== Uploads (queue + drag overlay) ===== */
 const fileInput = document.getElementById('file');
 const dropzone = document.getElementById('dropzone');
 fileInput.addEventListener('change', ()=> enqueueFiles([...fileInput.files]));
-
 ['dragenter','dragover'].forEach(evt=>{
   window.addEventListener(evt, e=>{ e.preventDefault(); dropzone.classList.add('show'); });
 });
@@ -384,62 +572,12 @@ dropzone.addEventListener('drop', (e)=>{
   const files = [...(e.dataTransfer?.files || [])];
   if(files.length) enqueueFiles(files);
 });
-
-// --- Mobile: single-tap to open, long-press for context ---
-const isTouch = ('ontouchstart' in window) || window.matchMedia('(pointer: coarse)').matches;
-let lpTimer = null, lpFired = false, lpTarget = null;
-
-function itemFromEvent(e){
-  const el = e.target.closest('[data-path]');
-  if(!el) return null;
-  return { el, path: el.dataset.path, type: el.dataset.type };
-}
-
-if (isTouch) {
-  // prevent desktop dblclick handler from requiring two taps
-  listEl.removeEventListener?.('dblclick', ()=>{});
-
-  // Single tap -> open
-  listEl.addEventListener('click', (e)=>{
-    // if a long-press just fired, ignore this click
-    if (lpFired) { lpFired = false; return; }
-    const it = itemFromEvent(e);
-    if(!it) return;
-    e.preventDefault();
-    if (it.type === 'dir') load(it.path);
-    else openPreview(it.path);
-  }, true);
-
-  // Long-press -> context menu
-  listEl.addEventListener('touchstart', (e)=>{
-    const it = itemFromEvent(e);
-    if(!it) return;
-    lpTarget = it;
-    lpFired = false;
-
-    const touch = e.touches[0];
-    const x = touch.clientX + window.scrollX;
-    const y = touch.clientY + window.scrollY;
-
-    lpTimer = setTimeout(()=>{
-      lpFired = true;
-      openCtx(it.path, x, y, it.type);
-    }, 500); // press & hold 500ms
-  }, {passive:true});
-
-  ['touchend','touchcancel','touchmove'].forEach(evt=>{
-    listEl.addEventListener(evt, ()=>{
-      if (lpTimer) { clearTimeout(lpTimer); lpTimer = null; }
-    }, {passive:true});
-  });
-}
-
 let queue = []; let uploading = false;
 function toastRow(name){
   const wrap = document.createElement('div');
-  wrap.className = 'pointer-events-auto glass border border-slate-800 rounded-xl p-3 shadow-soft';
+  wrap.className = 'pointer-events-auto card rounded-2xl p-3 shadow-subtle';
   wrap.innerHTML = `<div class="text-sm truncate">${name}</div>
-    <div class="mt-2 w-full h-2 bg-slate-800 rounded"><div class="h-2 bg-cyan-500 rounded" style="width:0%"></div></div>
+    <div class="mt-2 w-full h-2 bg-[var(--muted)] rounded"><div class="h-2 bg-[var(--accent)] rounded" style="width:0%"></div></div>
     <div class="text-right text-xs mt-1 opacity-80">0%</div>`;
   queueWrap.appendChild(wrap);
   return { wrap, bar: wrap.children[1].firstChild, pct: wrap.children[2] };
@@ -458,20 +596,91 @@ function uploadOne(item){
     const xhr = new XMLHttpRequest();
     xhr.open('POST', '/api/upload?path='+encodeURIComponent(currentPath));
     xhr.upload.onprogress = (e)=>{ if(!e.lengthComputable) return; const p=Math.round(e.loaded/e.total*100); item.bar.style.width=p+'%'; item.pct.textContent=p+'%'; };
-    xhr.onload = ()=>{ item.bar.style.width='100%'; item.pct.textContent = (xhr.status>=200&&xhr.status<300)?'Done':'Error'; setTimeout(()=> item.wrap.remove(), 2000); resolve(); };
-    xhr.onerror = ()=>{ item.pct.textContent='Error'; setTimeout(()=> item.wrap.remove(), 2500); resolve(); };
+    xhr.onload = ()=>{ item.bar.style.width='100%'; item.pct.textContent = (xhr.status>=200&&xhr.status<300)?'Done':'Error'; setTimeout(()=> item.wrap.remove(), 1800); resolve(); };
+    xhr.onerror = ()=>{ item.pct.textContent='Error'; setTimeout(()=> item.wrap.remove(), 2200); resolve(); };
     xhr.send(fd);
   });
 }
 
-// Up & mkdir
+/* Up & mkdir */
 document.getElementById('btn-up').onclick = ()=>{
   if(!currentPath || currentPath === '/') return;
   const parent = currentPath.split('/').slice(0,-1).join('/') || '/';
+  clearSelection();
   load(parent);
 };
 document.getElementById('btn-mkdir').onclick = mkdirHere;
 
+/* Actions (single or multi) */
+function currentSelectionArray(){
+  if(selected.size>0) return Array.from(selected);
+  return ctxTarget ? [ctxTarget.path] : [];
+}
+function openItem(){
+  const paths = currentSelectionArray();
+  if(paths.length !== 1){ alert('Open/Preview is for a single item.'); return; }
+  const p = paths[0];
+  const it = filteredItems().find(i=>i.path===p) || {type:'file'};
+  if(it.type==='dir') load(p); else openPreview(p);
+}
+async function propsItem(){
+  const paths = currentSelectionArray();
+  if(paths.length !== 1){ alert('Select exactly one item to view properties.'); return; }
+  const j=await api('/api/properties?path='+encodeURIComponent(paths[0]));
+  alert(`${j.type.toUpperCase()}\nName: ${j.name}\nSize: ${fmtBytes(j.size)}\nMIME: ${j.mime||''}\nModified: ${new Date(j.mtime*1000)}`);
+}
+async function mkdirHere(){
+  const name=prompt('Folder name:'); if(!name) return;
+  await api('/api/mkdir',{method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({parent: currentPath, name})});
+  load(currentPath);
+}
+async function deleteItem(){
+  const paths = currentSelectionArray(); if(paths.length===0) return;
+  if(!confirm(`Delete ${paths.length} item(s)?`)) return;
+  for(const p of paths){
+    await api('/api/delete',{method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({path: p})});
+  }
+  clearSelection(); load(currentPath);
+}
+async function moveItem(){
+  const paths = currentSelectionArray(); if(paths.length===0) return;
+  const dst=prompt('Move to path (relative to root):', currentPath); if(!dst) return;
+  for(const p of paths){
+    await api('/api/move',{method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({src: p, dst})});
+  }
+  clearSelection(); load(currentPath);
+}
+async function copyItem(){
+  const paths = currentSelectionArray(); if(paths.length===0) return;
+  const dst=prompt('Copy to path (relative to root):', currentPath); if(!dst) return;
+  for(const p of paths){
+    await api('/api/copy',{method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({src: p, dst})});
+  }
+  clearSelection(); load(currentPath);
+}
+async function shareItem(){
+  const paths = currentSelectionArray();
+  if(paths.length !== 1){ alert('Share works on one item for now.'); return; }
+  const hours=prompt('Expires in hours (0 = never):','0');
+  const j=await api('/api/share',{method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({path: paths[0], expires_hours: Number(hours||0)})});
+  const url = new URL(j.url, window.location.origin).toString();
+  navigator.clipboard.writeText(url).catch(()=>{});
+  alert('Share link copied:\n'+url);
+};
+
+selDl.addEventListener('click', (e)=>{
+  e.preventDefault();
+  if (selDl.classList.contains('disabled')) return;
+  downloadSelectedSequential();
+});
+selMv.addEventListener('click',  moveItem);
+selCp.addEventListener('click',  copyItem);
+selDel.addEventListener('click', deleteItem);
+selClear.addEventListener('click', clearSelection);
+
+/* Initial load */
+history.replaceState({ path: startPath || '/' }, '', location.search || (startPath==='/'?'':'?path='+encodeURIComponent(startPath)));
+load(startPath, false);
 </script>
 </body>
 </html>
