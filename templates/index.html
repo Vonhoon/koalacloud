@@ -275,6 +275,7 @@ listEl.addEventListener('contextmenu', (e)=>{
 function openCtx(path, x, y, type){
   ctxTarget = { path, type };
   ctx.innerHTML = `
+    <a onclick="downloadItem()">Download</a>
     <a onclick="openItem()">Open / Preview</a>
     <a onclick="shareItem()">Share…</a>
     <a onclick="propsItem()">Properties</a>
@@ -299,6 +300,11 @@ async function deleteItem(){ if(!confirm('Delete this item?')) return; await api
 async function moveItem(){ const dst=prompt('Move to path (relative to root):', currentPath); if(!dst) return; await api('/api/move',{method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({src: ctxTarget.path, dst})}); load(currentPath); }
 async function copyItem(){ const dst=prompt('Copy to path (relative to root):', currentPath); if(!dst) return; await api('/api/copy',{method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({src: ctxTarget.path, dst})}); load(currentPath); }
 async function shareItem(){ const hours=prompt('Expires in hours (0 = never):','0'); const j=await api('/api/share',{method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({path: ctxTarget.path, expires_hours: Number(hours||0)})}); const url = new URL(j.url, window.location.origin).toString(); navigator.clipboard.writeText(url).catch(()=>{}); alert('Share link copied:\n'+url); }
+function downloadItem(){
+  if(!ctxTarget || ctxTarget.type==='dir') return; // download only files
+  const url = '/api/download?path=' + encodeURIComponent(ctxTarget.path);
+  window.open(url, '_blank');
+}
 
 // ---------- Preview modal (no server change; uses Blob URLs) ----------
 const previewEl = document.getElementById('preview');
@@ -378,6 +384,55 @@ dropzone.addEventListener('drop', (e)=>{
   const files = [...(e.dataTransfer?.files || [])];
   if(files.length) enqueueFiles(files);
 });
+
+// --- Mobile: single-tap to open, long-press for context ---
+const isTouch = ('ontouchstart' in window) || window.matchMedia('(pointer: coarse)').matches;
+let lpTimer = null, lpFired = false, lpTarget = null;
+
+function itemFromEvent(e){
+  const el = e.target.closest('[data-path]');
+  if(!el) return null;
+  return { el, path: el.dataset.path, type: el.dataset.type };
+}
+
+if (isTouch) {
+  // prevent desktop dblclick handler from requiring two taps
+  listEl.removeEventListener?.('dblclick', ()=>{});
+
+  // Single tap -> open
+  listEl.addEventListener('click', (e)=>{
+    // if a long-press just fired, ignore this click
+    if (lpFired) { lpFired = false; return; }
+    const it = itemFromEvent(e);
+    if(!it) return;
+    e.preventDefault();
+    if (it.type === 'dir') load(it.path);
+    else openPreview(it.path);
+  }, true);
+
+  // Long-press -> context menu
+  listEl.addEventListener('touchstart', (e)=>{
+    const it = itemFromEvent(e);
+    if(!it) return;
+    lpTarget = it;
+    lpFired = false;
+
+    const touch = e.touches[0];
+    const x = touch.clientX + window.scrollX;
+    const y = touch.clientY + window.scrollY;
+
+    lpTimer = setTimeout(()=>{
+      lpFired = true;
+      openCtx(it.path, x, y, it.type);
+    }, 500); // press & hold 500ms
+  }, {passive:true});
+
+  ['touchend','touchcancel','touchmove'].forEach(evt=>{
+    listEl.addEventListener(evt, ()=>{
+      if (lpTimer) { clearTimeout(lpTimer); lpTimer = null; }
+    }, {passive:true});
+  });
+}
 
 let queue = []; let uploading = false;
 function toastRow(name){
