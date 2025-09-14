@@ -1,0 +1,422 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>{{ app_name }} — Drive</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    .glass { backdrop-filter: blur(10px); background: rgba(2,6,23,.65); }
+    .ctx { position:absolute; z-index:50; min-width:12rem; background:#0f172a; border:1px solid #334155; border-radius:.5rem; display:none; }
+    .ctx a{ display:block; padding:.6rem .8rem; color:#e2e8f0; }
+    .ctx a:hover{ background:#1e293b; }
+    .drop-overlay{ position:fixed; inset:0; display:none; align-items:center; justify-content:center; z-index:40;
+      background: rgba(14,22,40,.55); border:3px dashed rgba(34,211,238,.7); }
+    .drop-overlay.show{ display:flex; }
+    .kebab { width: 2.25rem; height: 2.25rem; }
+    .tile:hover { transform: translateY(-2px); }
+    .shadow-soft { box-shadow: 0 8px 24px rgba(0,0,0,.35);}
+  </style>
+</head>
+<body class="bg-gradient-to-br from-slate-950 via-slate-900 to-slate-900 text-slate-100 min-h-screen">
+
+  <!-- Header -->
+  <header class="glass sticky top-0 z-40 shadow-soft">
+    <div class="max-w-6xl mx-auto px-4 py-3 flex items-center gap-3">
+      <img src="{{ url_for('static', filename='koala.jpg') }}" alt="koala" class="h-10 w-10 rounded-full border border-slate-700">
+      <div class="flex-1">
+        <h1 class="text-xl md:text-2xl font-bold text-cyan-400 leading-tight">{{ app_name }}</h1>
+        <p class="text-xs md:text-sm text-slate-400">Private web drive with share links</p>
+      </div>
+      <button id="btn-logout" class="hidden md:inline px-3 py-2 rounded bg-slate-800 border border-slate-700 hover:bg-slate-700">
+        Logout
+      </button>
+    </div>
+  </header>
+
+  <!-- Login overlay -->
+  <div id="login" class="min-h-[70vh] md:min-h-[75vh] flex items-center justify-center px-4">
+    <div class="glass p-6 md:p-8 rounded-2xl w-full max-w-sm border border-slate-800 shadow-soft">
+      <h2 class="text-2xl font-bold mb-6 text-cyan-400 text-center">Sign in</h2>
+      <form id="login-form" class="space-y-4">
+        <div>
+          <label class="block text-sm mb-1 text-slate-300">Username</label>
+          <input id="u" class="w-full bg-slate-800/70 border border-slate-700 rounded-lg p-2.5 focus:outline-none focus:ring-2 focus:ring-cyan-600" required>
+        </div>
+        <div>
+          <label class="block text-sm mb-1 text-slate-300">Password</label>
+          <input id="p" type="password" class="w-full bg-slate-800/70 border border-slate-700 rounded-lg p-2.5 focus:outline-none focus:ring-2 focus:ring-cyan-600" required>
+        </div>
+        <button class="w-full bg-gradient-to-r from-cyan-600 to-emerald-600 hover:from-cyan-700 hover:to-emerald-700 rounded-lg p-2.5 font-semibold">
+          Continue
+        </button>
+        <p id="err" class="text-red-400 text-xs mt-2 text-center"></p>
+      </form>
+    </div>
+  </div>
+
+  <!-- Drive UI -->
+  <main id="drive" class="hidden max-w-6xl mx-auto p-4 md:p-6 space-y-4">
+
+    <!-- Toolbar -->
+    <section class="glass rounded-2xl p-3 md:p-4 border border-slate-800 shadow-soft">
+      <div class="flex flex-col md:flex-row md:items-center gap-3">
+        <!-- Breadcrumbs -->
+        <nav id="crumbs" class="flex items-center flex-wrap text-sm gap-x-2"></nav>
+
+        <div class="flex-1"></div>
+
+        <!-- Search -->
+        <div class="flex items-center gap-2">
+          <div class="relative">
+            <input id="search" placeholder="Search in folder…" class="w-48 md:w-64 bg-slate-800/70 border border-slate-700 rounded-lg pl-9 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-600">
+            <span class="absolute left-2 top-1.5 opacity-70">🔎</span>
+          </div>
+          <!-- View toggle -->
+          <div class="inline-flex rounded-lg border border-slate-700 overflow-hidden">
+            <button id="view-grid" class="px-3 py-2 text-sm bg-slate-800/70 hover:bg-slate-700">Grid</button>
+            <button id="view-list" class="px-3 py-2 text-sm bg-slate-800/70 hover:bg-slate-700">List</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Actions -->
+      <div class="mt-3 flex flex-wrap items-center gap-2">
+        <button id="btn-up" class="px-3 py-2 rounded-lg bg-sky-600 hover:bg-sky-700">⬆ Up</button>
+        <button id="btn-mkdir" class="px-3 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700">＋ New Folder</button>
+        <label class="px-3 py-2 rounded-lg bg-cyan-700 hover:bg-cyan-800 cursor-pointer">
+          ＋ Add files<input id="file" type="file" class="hidden" multiple>
+        </label>
+        <span id="cwd" class="text-xs md:text-sm opacity-80 ml-auto"></span>
+        <button id="btn-logout-mobile" class="md:hidden px-3 py-2 rounded-lg bg-slate-800 border border-slate-700">Logout</button>
+      </div>
+    </section>
+
+    <!-- File area -->
+    <section id="list" class="rounded-2xl border border-slate-800 glass shadow-soft p-0"></section>
+
+    <!-- Upload queue -->
+    <section id="queue-wrap" class="fixed right-3 bottom-3 left-3 md:left-auto md:w-96 space-y-2 pointer-events-none"></section>
+  </main>
+
+  <!-- Right-click / Kebab context -->
+  <div id="ctx" class="ctx"></div>
+
+  <!-- Drag overlay -->
+  <div id="dropzone" class="drop-overlay">
+    <div class="border-2 border-dashed border-cyan-400/70 rounded-2xl px-8 py-10 text-center bg-slate-900/60">
+      <div class="text-2xl mb-2">Drop files to upload</div>
+      <div class="text-slate-400">They’ll be uploaded to the current folder</div>
+    </div>
+  </div>
+
+  <!-- Preview modal -->
+  <div id="preview" class="hidden fixed inset-0 bg-black/70 z-50 items-center justify-center">
+    <div class="bg-slate-900 rounded-xl max-w-4xl w-[92vw] max-h-[90vh] overflow-auto p-4 border border-slate-800 shadow-soft">
+      <div class="flex justify-between items-center mb-3">
+        <div id="preview-title" class="font-semibold text-slate-200 truncate"></div>
+        <button id="preview-close" class="px-3 py-1 rounded bg-red-600 hover:bg-red-700 text-sm">Close</button>
+      </div>
+      <div id="preview-body" class="text-center"></div>
+    </div>
+  </div>
+
+<script>
+const loginDiv = document.getElementById('login');
+const driveDiv = document.getElementById('drive');
+const errEl    = document.getElementById('err');
+
+async function api(url, opts){
+  const r = await fetch(url, opts);
+  const t = await r.text();
+  let j; try{ j = JSON.parse(t); }catch(e){ throw new Error(t.slice(0,200)); }
+  if(!r.ok || j.ok===false || j.success===false) throw new Error(j.error || j.message || ('HTTP '+r.status));
+  return j;
+}
+
+async function checkStatus(){
+  try{
+    const s = await api('/auth/status');
+    if(s.logged_in){ loginDiv.classList.add('hidden'); driveDiv.classList.remove('hidden'); load('/'); }
+  }catch{}
+}
+checkStatus();
+
+document.getElementById('login-form').addEventListener('submit', async (e)=>{
+  e.preventDefault(); errEl.textContent='';
+  const username = document.getElementById('u').value;
+  const password = document.getElementById('p').value;
+  try{
+    await api('/auth/login', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({username,password})});
+    loginDiv.classList.add('hidden'); driveDiv.classList.remove('hidden'); load('/');
+  }catch(ex){ errEl.textContent = ex.message; }
+});
+
+const logout = async ()=>{ await api('/auth/logout', {method:'POST'}); location.reload(); };
+document.getElementById('btn-logout').onclick = logout;
+document.getElementById('btn-logout-mobile').onclick = logout;
+
+// ---------- Drive UI ----------
+const listEl = document.getElementById('list');
+const cwdEl  = document.getElementById('cwd');
+const crumbsEl = document.getElementById('crumbs');
+const ctx    = document.getElementById('ctx');
+const queueWrap = document.getElementById('queue-wrap');
+const searchEl = document.getElementById('search');
+
+let currentPath = '/';
+let currentItems = [];
+let ctxTarget = null;
+let viewMode = 'grid'; // 'grid' | 'list'
+
+document.getElementById('view-grid').onclick = ()=>{ viewMode='grid'; renderList(); };
+document.getElementById('view-list').onclick = ()=>{ viewMode='list'; renderList(); };
+
+function fmtBytes(b){ const u=['B','KB','MB','GB','TB']; let i=0; while(b>=1024&&i<u.length-1){b/=1024;i++;} return `${b.toFixed(1)} ${u[i]}`; }
+
+function buildCrumbs(p){
+  const parts = (p||'/').split('/').filter(Boolean);
+  crumbsEl.innerHTML='';
+  const push = (html)=>{ const span=document.createElement('span'); span.innerHTML=html; crumbsEl.appendChild(span); };
+  push(`<a class="text-cyan-400 hover:underline" data-jump="/">Home</a>`);
+  let acc = '';
+  parts.forEach((seg)=>{
+    acc += '/'+seg;
+    push(`<span class="opacity-50">›</span>`);
+    push(`<a class="hover:underline" data-jump="${acc}">${seg}</a>`);
+  });
+  crumbsEl.querySelectorAll('[data-jump]').forEach(a=>{
+    a.addEventListener('click', (e)=>{ e.preventDefault(); load(a.getAttribute('data-jump')); });
+  });
+}
+
+searchEl.addEventListener('input', ()=> renderList());
+
+async function load(path){
+  const j = await api('/api/list?path='+encodeURIComponent(path||''));
+  currentPath = (j.type==='dir' ? j.path : path);
+  cwdEl.textContent = 'Path: ' + (currentPath||'/');
+  buildCrumbs(currentPath||'/');
+  if(j.type==='file'){
+    window.open('/api/download?path='+encodeURIComponent(path),'_blank');
+    return;
+  }
+  currentItems = j.items || [];
+  renderList();
+}
+
+function rowTemplate(it){
+  const d = new Date(it.mtime*1000).toLocaleString();
+  return `<div class="row grid grid-cols-12 px-3 py-2 cursor-default hover:bg-slate-800/60" data-path="${it.path}" data-type="${it.type}">
+    <div class="col-span-7 flex items-center gap-2 truncate">
+      ${it.type==='dir'?'📁':'📄'} <span class="truncate">${it.name}</span>
+    </div>
+    <div class="col-span-2">${it.type==='dir'?'—':fmtBytes(it.size)}</div>
+    <div class="col-span-3 flex items-center justify-between">
+      <span>${d}</span>
+      <button class="kebab rounded hover:bg-slate-700 flex items-center justify-center" data-menu="${it.path}">⋮</button>
+    </div>
+  </div>`;
+}
+
+function tileTemplate(it){
+  const d = new Date(it.mtime*1000).toLocaleDateString();
+  const icon = it.type==='dir'?'📁':'📄';
+  return `<div class="tile group rounded-xl border border-slate-800 glass p-3 shadow-soft hover:border-slate-700 transition"
+              data-path="${it.path}" data-type="${it.type}">
+    <div class="flex items-start justify-between">
+      <div class="text-3xl">${icon}</div>
+      <button class="kebab rounded hover:bg-slate-700 flex items-center justify-center" data-menu="${it.path}">⋮</button>
+    </div>
+    <div class="mt-2 font-medium truncate" title="${it.name}">${it.name}</div>
+    <div class="text-xs text-slate-400 mt-1">${it.type==='dir'?'Folder':fmtBytes(it.size)} • ${d}</div>
+  </div>`;
+}
+
+function renderList(){
+  const q = searchEl.value?.toLowerCase().trim() || '';
+  const items = q ? currentItems.filter(it => it.name.toLowerCase().includes(q)) : currentItems;
+
+  if(viewMode==='list'){
+    let html = `<div class="grid grid-cols-12 bg-slate-800/60 px-3 py-2 text-sm border-b border-slate-800">
+      <div class="col-span-7">Name</div><div class="col-span-2">Size</div><div class="col-span-3">Modified</div></div>`;
+    html += items.map(rowTemplate).join('');
+    listEl.innerHTML = html;
+  } else {
+    const grid = items.map(tileTemplate).join('');
+    listEl.innerHTML = `<div class="p-3 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">${grid}</div>`;
+  }
+}
+
+// Double-click open
+listEl.addEventListener('dblclick', (e)=>{
+  const card = e.target.closest('[data-path]'); if(!card) return;
+  const p = card.dataset.path; const t = card.dataset.type;
+  if(t==='dir') load(p); else openPreview(p);
+});
+
+// Kebab menu click
+listEl.addEventListener('click', (e)=>{
+  const kb = e.target.closest('[data-menu]'); if(!kb) return;
+  const path = kb.dataset.menu;
+  const row = e.target.closest('[data-path]');
+  const r = row.getBoundingClientRect();
+  openCtx(path, r.right-12, r.top+window.scrollY+8, row.dataset.type);
+});
+
+// ✅ RIGHT-CLICK context menu (fixed)
+listEl.addEventListener('contextmenu', (e)=>{
+  e.preventDefault();
+  const row = e.target.closest('[data-path]');
+  if(!row){ ctx.style.display='none'; return; }
+  openCtx(row.dataset.path, e.pageX, e.pageY, row.dataset.type);
+});
+
+function openCtx(path, x, y, type){
+  ctxTarget = { path, type };
+  ctx.innerHTML = `
+    <a onclick="openItem()">Open / Preview</a>
+    <a onclick="shareItem()">Share…</a>
+    <a onclick="propsItem()">Properties</a>
+    <hr style="border-color:#334155">
+    <a onclick="mkdirHere()">New Folder</a>
+    <a onclick="moveItem()">Move…</a>
+    <a onclick="copyItem()">Copy…</a>
+    <a onclick="deleteItem()">Delete</a>`;
+  ctx.style.left = x+'px';
+  ctx.style.top  = y+'px';
+  ctx.style.display='block';
+}
+
+// Close ctx only when clicking outside it
+document.addEventListener('click', (e)=>{ if(!ctx.contains(e.target)) ctx.style.display='none'; });
+
+// ---- Actions
+function openItem(){ if(!ctxTarget) return; if(ctxTarget.type==='dir') load(ctxTarget.path); else openPreview(ctxTarget.path); }
+async function propsItem(){ const j=await api('/api/properties?path='+encodeURIComponent(ctxTarget.path)); alert(`${j.type.toUpperCase()}\nName: ${j.name}\nSize: ${fmtBytes(j.size)}\nMIME: ${j.mime||''}\nModified: ${new Date(j.mtime*1000)}`); }
+async function mkdirHere(){ const name=prompt('Folder name:'); if(!name) return; await api('/api/mkdir',{method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({parent: currentPath, name})}); load(currentPath); }
+async function deleteItem(){ if(!confirm('Delete this item?')) return; await api('/api/delete',{method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({path: ctxTarget.path})}); load(currentPath); }
+async function moveItem(){ const dst=prompt('Move to path (relative to root):', currentPath); if(!dst) return; await api('/api/move',{method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({src: ctxTarget.path, dst})}); load(currentPath); }
+async function copyItem(){ const dst=prompt('Copy to path (relative to root):', currentPath); if(!dst) return; await api('/api/copy',{method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({src: ctxTarget.path, dst})}); load(currentPath); }
+async function shareItem(){ const hours=prompt('Expires in hours (0 = never):','0'); const j=await api('/api/share',{method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({path: ctxTarget.path, expires_hours: Number(hours||0)})}); const url = new URL(j.url, window.location.origin).toString(); navigator.clipboard.writeText(url).catch(()=>{}); alert('Share link copied:\n'+url); }
+
+// ---------- Preview modal (no server change; uses Blob URLs) ----------
+const previewEl = document.getElementById('preview');
+const previewBody = document.getElementById('preview-body');
+const previewTitle = document.getElementById('preview-title');
+const previewClose = document.getElementById('preview-close');
+
+function showPreview(title, innerHTML){
+  previewTitle.textContent = title || '';
+  previewBody.innerHTML = innerHTML;
+  previewEl.classList.remove('hidden');
+}
+function closePreview(){
+  // revoke any object URLs inside the preview
+  previewBody.querySelectorAll('[data-bloburl]').forEach(n => { URL.revokeObjectURL(n.getAttribute('data-bloburl')); });
+  previewEl.classList.add('hidden');
+  previewBody.innerHTML = '';
+}
+previewClose.onclick = closePreview;
+previewEl.addEventListener('click', (e)=>{ if(e.target === previewEl) closePreview(); });
+document.addEventListener('keydown', (e)=>{ if(e.key === 'Escape') closePreview(); });
+
+async function blobURL(url){
+  const res = await fetch(url); // cookies/session included (same-origin)
+  const blob = await res.blob();
+  const u = URL.createObjectURL(blob);
+  return u;
+}
+
+async function openPreview(path){
+  const ext = (path.split('.').pop() || '').toLowerCase();
+  const rawUrl = '/api/download?path='+encodeURIComponent(path);
+
+  try{
+    if(['png','jpg','jpeg','gif','webp','bmp','svg'].includes(ext)){
+      const u = await blobURL(rawUrl);
+      showPreview(path, `<img src="${u}" data-bloburl="${u}" class="max-h-[80vh] mx-auto rounded">`);
+      return;
+    }
+    if(['mp4','webm','m4v','mov'].includes(ext)){
+      const u = await blobURL(rawUrl);
+      showPreview(path, `<video src="${u}" data-bloburl="${u}" controls autoplay class="max-h-[80vh] mx-auto rounded"></video>`);
+      return;
+    }
+    if(['mp3','wav','ogg','m4a','flac'].includes(ext)){
+      const u = await blobURL(rawUrl);
+      showPreview(path, `<audio src="${u}" data-bloburl="${u}" controls autoplay class="w-full"></audio>`);
+      return;
+    }
+    if(['txt','srt','ass','md','json','log','csv'].includes(ext)){
+      const res = await fetch(rawUrl);
+      const text = await res.text();
+      showPreview(path, `<pre class="whitespace-pre-wrap text-left text-sm bg-slate-800/60 p-3 rounded border border-slate-700">${escapeHTML(text)}</pre>`);
+      return;
+    }
+    // default: open in new tab (download)
+    window.open(rawUrl,'_blank');
+  }catch(e){
+    // fallback to download on any error
+    window.open(rawUrl,'_blank');
+  }
+}
+function escapeHTML(str){ return str.replace(/[&<>"']/g, s=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[s])); }
+
+// ---------- Uploads (queue + drag overlay) ----------
+const fileInput = document.getElementById('file');
+const dropzone = document.getElementById('dropzone');
+fileInput.addEventListener('change', ()=> enqueueFiles([...fileInput.files]));
+
+['dragenter','dragover'].forEach(evt=>{
+  window.addEventListener(evt, e=>{ e.preventDefault(); dropzone.classList.add('show'); });
+});
+['dragleave','drop'].forEach(evt=>{
+  window.addEventListener(evt, e=>{ e.preventDefault(); dropzone.classList.remove('show'); });
+});
+dropzone.addEventListener('drop', (e)=>{
+  const files = [...(e.dataTransfer?.files || [])];
+  if(files.length) enqueueFiles(files);
+});
+
+let queue = []; let uploading = false;
+function toastRow(name){
+  const wrap = document.createElement('div');
+  wrap.className = 'pointer-events-auto glass border border-slate-800 rounded-xl p-3 shadow-soft';
+  wrap.innerHTML = `<div class="text-sm truncate">${name}</div>
+    <div class="mt-2 w-full h-2 bg-slate-800 rounded"><div class="h-2 bg-cyan-500 rounded" style="width:0%"></div></div>
+    <div class="text-right text-xs mt-1 opacity-80">0%</div>`;
+  queueWrap.appendChild(wrap);
+  return { wrap, bar: wrap.children[1].firstChild, pct: wrap.children[2] };
+}
+function enqueueFiles(files){
+  files.forEach(f=>{
+    const row = toastRow(f.name);
+    queue.push({file:f, ...row});
+  });
+  if(!uploading) processQueue();
+}
+async function processQueue(){ uploading=true; while(queue.length){ const item=queue.shift(); await uploadOne(item); } uploading=false; load(currentPath); }
+function uploadOne(item){
+  return new Promise((resolve)=>{
+    const fd = new FormData(); fd.append('file', item.file);
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', '/api/upload?path='+encodeURIComponent(currentPath));
+    xhr.upload.onprogress = (e)=>{ if(!e.lengthComputable) return; const p=Math.round(e.loaded/e.total*100); item.bar.style.width=p+'%'; item.pct.textContent=p+'%'; };
+    xhr.onload = ()=>{ item.bar.style.width='100%'; item.pct.textContent = (xhr.status>=200&&xhr.status<300)?'Done':'Error'; setTimeout(()=> item.wrap.remove(), 2000); resolve(); };
+    xhr.onerror = ()=>{ item.pct.textContent='Error'; setTimeout(()=> item.wrap.remove(), 2500); resolve(); };
+    xhr.send(fd);
+  });
+}
+
+// Up & mkdir
+document.getElementById('btn-up').onclick = ()=>{
+  if(!currentPath || currentPath === '/') return;
+  const parent = currentPath.split('/').slice(0,-1).join('/') || '/';
+  load(parent);
+};
+document.getElementById('btn-mkdir').onclick = mkdirHere;
+
+</script>
+</body>
+</html>
