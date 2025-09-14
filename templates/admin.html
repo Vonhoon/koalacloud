@@ -1,0 +1,147 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>{{ app_name }} — Admin</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+</head>
+<body class="bg-slate-900 text-slate-100">
+  <!-- Login overlay -->
+  <div id="login" class="min-h-screen flex items-center justify-center">
+    <div class="bg-slate-800 p-8 rounded-lg w-full max-w-sm border border-slate-700">
+      <h2 class="text-2xl font-bold mb-6 text-cyan-400">Admin Login</h2>
+      <form id="login-form">
+        <label class="block text-sm mb-1">Username</label>
+        <input id="u" class="bg-slate-700 border border-slate-600 rounded w-full p-2 mb-3" required>
+        <label class="block text-sm mb-1">Password</label>
+        <input id="p" type="password" class="bg-slate-700 border border-slate-600 rounded w-full p-2 mb-4" required>
+        <button class="w-full bg-cyan-600 hover:bg-cyan-700 rounded p-2">Login</button>
+        <p id="err" class="text-red-400 text-xs mt-3"></p>
+      </form>
+    </div>
+  </div>
+
+  <!-- Dashboard -->
+  <div id="dash" class="hidden max-w-6xl mx-auto p-6">
+    <h1 class="text-3xl font-bold mb-6 text-cyan-400">{{ app_name }} — Admin</h1>
+
+    <div class="mb-4">
+      <button id="btn-logout" class="px-3 py-1.5 rounded bg-slate-800 border border-slate-700">Logout</button>
+    </div>
+
+    <div class="grid gap-6 md:grid-cols-3">
+      <!-- Services -->
+      <div class="bg-slate-800 p-4 rounded border border-slate-700 md:col-span-1">
+        <h2 class="text-xl font-semibold mb-3">Services</h2>
+        <div id="svc" class="space-y-3"></div>
+      </div>
+
+      <!-- Hardware -->
+      <div class="bg-slate-800 p-4 rounded border border-slate-700 md:col-span-1">
+        <h2 class="text-xl font-semibold mb-3">Hardware</h2>
+        <div>
+          <div class="flex justify-between"><span>CPU</span><span id="cpu">0%</span></div>
+          <div class="w-full bg-slate-700 rounded h-2"><div id="cpuBar" class="bg-cyan-500 h-2" style="width:0%"></div></div>
+        </div>
+        <div class="mt-3">
+          <div class="flex justify-between"><span>Memory</span><span id="mem">0%</span></div>
+          <div class="w-full bg-slate-700 rounded h-2"><div id="memBar" class="bg-emerald-500 h-2" style="width:0%"></div></div>
+        </div>
+      </div>
+
+      <!-- Storage -->
+      <div class="bg-slate-800 p-4 rounded border border-slate-700 md:col-span-1">
+        <h2 class="text-xl font-semibold mb-3">Storage</h2>
+        <div id="stg" class="space-y-3"></div>
+      </div>
+    </div>
+  </div>
+
+<script>
+const loginDiv = document.getElementById('login');
+const dashDiv  = document.getElementById('dash');
+const errEl    = document.getElementById('err');
+
+async function api(url, opts){
+  const r = await fetch(url, opts);
+  const t = await r.text();
+  let j; try{ j = JSON.parse(t); }catch(e){ throw new Error(t.slice(0,200)); }
+  if(!r.ok || j.ok===false || j.success===false) throw new Error(j.error || j.message || ('HTTP '+r.status));
+  return j;
+}
+
+async function checkStatus(){
+  try{
+    const s = await api('/auth/status');
+    if(s.logged_in){ loginDiv.classList.add('hidden'); dashDiv.classList.remove('hidden'); initDash(); }
+  }catch{}
+}
+checkStatus();
+
+document.getElementById('login-form').addEventListener('submit', async (e)=>{
+  e.preventDefault(); errEl.textContent='';
+  const username = document.getElementById('u').value;
+  const password = document.getElementById('p').value;
+  try{
+    await api('/auth/login', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({username,password})});
+    loginDiv.classList.add('hidden'); dashDiv.classList.remove('hidden'); initDash();
+  }catch(ex){ errEl.textContent = ex.message; }
+});
+
+document.getElementById('btn-logout').onclick = async ()=>{
+  await api('/auth/logout', {method:'POST'});
+  location.reload();
+}
+
+function renderServices(services){
+  const el = document.getElementById('svc'); el.innerHTML='';
+  for(const [name, state] of Object.entries(services)){
+    const row = document.createElement('div');
+    row.className = 'flex items-center justify-between';
+    row.innerHTML = `<span class="capitalize">${name}</span>
+      <label class="inline-flex items-center cursor-pointer">
+        <input type="checkbox" class="sr-only peer" ${state?'checked':''} data-svc="${name}">
+        <div class="w-10 h-5 bg-slate-600 rounded-full peer-checked:bg-emerald-500 relative">
+          <div class="absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded transition peer-checked:translate-x-5"></div>
+        </div>
+      </label>`;
+    el.appendChild(row);
+  }
+  el.querySelectorAll('input[type=checkbox]').forEach((cb)=>{
+    cb.addEventListener('change', async (ev)=>{
+      const service = ev.target.dataset.svc;
+      const state = ev.target.checked;
+      try{
+        await api('/admin/services/toggle', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({service, state})});
+      }catch(ex){ alert('Error: '+ex.message); ev.target.checked = !state; }
+    });
+  });
+}
+
+async function initDash(){
+  const svc = await api('/admin/services/list');
+  renderServices(svc.services);
+
+  const st = await api('/admin/storage');
+  const el = document.getElementById('stg'); el.innerHTML='';
+  st.storage.forEach(d=>{
+    const used = (d.used/1073741824).toFixed(1), tot=(d.total/1073741824).toFixed(1);
+    const wrap = document.createElement('div');
+    wrap.innerHTML = `<div class="flex justify-between"><span>${d.mountpoint}</span><span>${used} / ${tot} GB</span></div>
+      <div class="w-full bg-slate-700 rounded h-2"><div class="bg-purple-500 h-2" style="width:${d.percent}%"></div></div>`;
+    el.appendChild(wrap);
+  });
+
+  const sock = io();
+  sock.on('system_stats', (d)=>{
+    document.getElementById('cpu').textContent = d.cpu_percent.toFixed(1)+'%';
+    document.getElementById('cpuBar').style.width = d.cpu_percent+'%';
+    document.getElementById('mem').textContent = d.memory_percent.toFixed(1)+'%';
+    document.getElementById('memBar').style.width = d.memory_percent+'%';
+  });
+}
+</script>
+</body>
+</html>
