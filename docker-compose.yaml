@@ -1,0 +1,31 @@
+services:
+  server-control:    
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: server-control
+    container_name: server-control
+    restart: always
+    ports:
+      - "5000:5000"
+    pid: host
+    privileged: true
+    environment:
+      APP_NAME: Server Control
+      SECRET_KEY: ${SECRET_KEY}
+      STORAGE_ROOT: /mnt/drive
+      DEFAULT_UPLOAD_DIR: /mnt/drive/Video
+      DB_PATH: /data/share.db
+      DASH_MOUNTS: "/,/mnt/drive,/mnt/sdcard"
+      SERVICE_UNITS: "minecraft server:minecraft-bedrock.service,jellyfin:jellyfin.service,cloudflared tunnel:cloudflared.service,samba daemon:smbd.service"
+      USE_NSENTER: "1"
+      PAM_SERVICE: login
+    volumes:
+      - /mnt/drive:/mnt/drive
+      - /mnt/sdcard:/mnt/sdcard
+      - /mnt/drive/Video:/mnt/drive/Video
+      - /opt/koala-cloud:/data
+      - /etc/passwd:/etc/passwd:ro
+      - /etc/shadow:/etc/shadow:ro
+      - /etc/group:/etc/group:ro
+      - /etc/pam.d/:/etc/pam.d/:ro

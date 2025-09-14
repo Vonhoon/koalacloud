@@ -8,11 +8,13 @@ import shutil
 from pathlib import Path
 from functools import wraps
 
-from flask import Flask, render_template, request, jsonify, send_file, abort, session
+from flask import Flask, render_template, request, jsonify, send_file, abort, session, redirect
 from flask_socketio import SocketIO
 import pam
 import psutil
 from werkzeug.utils import secure_filename
+
+from werkzeug.middleware.proxy_fix import ProxyFix
 
 # ==================== Config ====================
 APP_NAME = os.getenv('APP_NAME', 'Koala Cloud')
@@ -42,6 +44,19 @@ app.config['MAX_CONTENT_LENGTH'] = MAX_UPLOAD_MB * 1024 * 1024
 socketio = SocketIO(app, cors_allowed_origins='*')
 
 DRIVE_ENABLED = True  # toggle controlled by admin
+
+
+# trust Cloudflare's proxy headers
+app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
+
+@app.before_request
+def force_https_on_public_domain():
+    host = request.headers.get('Host', '')
+    # only force on your public domain so local http://serverip:5000 still works
+    if host.endswith('koalarepublic.top'):
+        proto = request.headers.get('X-Forwarded-Proto', 'http')
+        if proto != 'https':
+            return redirect(request.url.replace('http://', 'https://', 1), code=301)
 
 # ==================== Helpers ====================
 def load_service_map():
@@ -200,11 +215,6 @@ def drive_root():
     return render_template('index.html', app_name=APP_NAME)
 
 # ==================== Drive page & APIs (auth) ====================
-@app.get('/')
-def drive_page():
-    # Root serves the Drive UI. Login overlay if not authenticated.
-    return render_template('index.html', app_name=APP_NAME)
-
 @app.get('/api/list')
 @auth_required_json
 def api_list():
