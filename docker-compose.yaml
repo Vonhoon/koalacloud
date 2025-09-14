@@ -11,8 +11,8 @@ services:
     pid: host
     privileged: true
     environment:
-      APP_NAME: Server Control
-      SECRET_KEY: ${SECRET_KEY}
+      APP_NAME: Koala Cloud
+      SECRET_KEY: 
       STORAGE_ROOT: /mnt/drive
       DEFAULT_UPLOAD_DIR: /mnt/drive/Video
       DB_PATH: /data/share.db
