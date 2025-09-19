@@ -632,13 +632,52 @@ async function copyItem(){
 }
 async function shareItem(){
   const paths = currentSelectionArray();
-  if(paths.length !== 1){ alert('Share works on one item for now.'); return; }
-  const hours=prompt('Expires in hours (0 = never):','0');
-  const j=await api('/api/share',{method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({path: paths[0], expires_hours: Number(hours||0)})});
-  const url = new URL(j.url, window.location.origin).toString();
-  navigator.clipboard.writeText(url).catch(()=>{});
-  alert('Share link copied:\n'+url);
+  if(paths.length !== 1){
+    alert('Share works on one item at a time.');
+    return;
+  }
+  const hours = prompt('Expires in hours (0 = never):', '0');
+  if (hours === null) return; // User cancelled the prompt
+
+  try {
+    const j = await api('/api/share', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({path: paths[0], expires_hours: Number(hours || 0)})
+    });
+    const url = new URL(j.url, window.location.origin).toString();
+
+    // --- New, reliable copy logic ---
+    const copyToClipboard = (text) => {
+      // Use navigator.clipboard if available (modern, secure)
+      if (navigator.clipboard && window.isSecureContext) {
+        return navigator.clipboard.writeText(text);
+      } else {
+        // Fallback for older browsers or insecure contexts
+        let textArea = document.createElement("textarea");
+        textArea.value = text;
+        textArea.style.position = "fixed"; // Avoid scrolling to bottom
+        textArea.style.left = "-999999px";
+        textArea.style.top = "-999999px";
+        document.body.appendChild(textArea);
+        textArea.focus();
+        textArea.select();
+        return new Promise((res, rej) => {
+          document.execCommand('copy') ? res() : rej();
+          textArea.remove();
+        });
+      }
+    };
+
+    copyToClipboard(url)
+      .then(() => alert('Share link copied to clipboard!\n' + url))
+      .catch(() => alert('Could not copy link automatically. Please copy it manually:\n' + url));
+
+  } catch (ex) {
+    alert('Error creating share link: ' + ex.message);
+  }
 };
+
 
 selDl.addEventListener('click', (e)=>{
   e.preventDefault();
