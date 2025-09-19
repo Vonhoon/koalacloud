@@ -17,37 +17,42 @@
       <div class="card error">
         <p>🚫 {{ error }}</p>
       </div>
-    {% elif items %}
-      <div class="file-list">
-        {% for item in items %}
-          <a href="{{ url_for('shared_download_direct', token=token, p=item.name) }}" class="card file-item" download>
-            <div class="icon">
-              {% if item.type == 'dir' %}
-                <span>📁</span>
-              {% else %}
-                <span>📄</span>
-              {% endif %}
-            </div>
-            <div class="details">
-              <div class="name">{{ item.name }}</div>
-              <div class="meta">
-                {% if item.type == 'file' %}
-                  {{ (item.size / 1024 / 1024)|round(2) }} MB
-                {% else %}
-                  Folder
-                {% endif %}
-              </div>
-            </div>
-            <div class="download-icon">
-              <span>⬇️</span>
-            </div>
-          </a>
-        {% endfor %}
-      </div>
     {% else %}
-        <div class="card">
-            <p>This share link is empty.</p>
-        </div>
+      <div class="file-list">
+        
+        {% if current_relative_path %}
+          <a href="{{ url_for('shared_entry', token=token, p=parent_relative_path) }}" class="card file-item nav-item">
+            <div class="icon"><span>⬆️</span></div>
+            <div class="details"><div class="name">Up to parent folder</div></div>
+          </a>
+        {% endif %}
+
+        {% if items %}
+          {% for item in items %}
+            {% if item.type == 'dir' %}
+              <a href="{{ url_for('shared_entry', token=token, p=item.relative_path) }}" class="card file-item">
+                <div class="icon"><span>📁</span></div>
+                <div class="details">
+                  <div class="name">{{ item.name }}</div>
+                  <div class="meta">Folder</div>
+                </div>
+              </a>
+            {% else %}
+              <a href="{{ url_for('shared_download_direct', token=token, p=item.relative_path) }}" class="card file-item" download>
+                <div class="icon"><span>📄</span></div>
+                <div class="details">
+                  <div class="name">{{ item.name }}</div>
+                  <div class="meta">{{ (item.size / 1024 / 1024)|round(2) }} MB</div>
+                </div>
+                <div class="download-icon"><span>⬇️</span></div>
+              </a>
+            {% endif %}
+          {% endfor %}
+        {% elif not current_relative_path %}
+            <div class="card"><p>This share link is empty.</p></div>
+        {% endif %}
+
+      </div>
     {% endif %}
 
     <footer>

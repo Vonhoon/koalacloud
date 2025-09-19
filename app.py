@@ -690,71 +690,104 @@ def api_share():
         conn.commit()
     return jsonify({'ok': True, 'token': token, 'url': f'/s/{token}'})
 
-# --- NEW: Direct download route for shared files ---
-@app.get('/s/<token>/dl')
-def shared_download_direct(token):
-    with sqlite3.connect(DB_PATH) as conn:
-        row = conn.execute('SELECT target_path, is_dir, expires_at FROM shares WHERE token=?', (token,)).fetchone()
-    if not row:
-        abort(404)
-    target_path, is_dir, expires_at = row
-    if expires_at and time.time() > expires_at:
-        abort(410, description='Link expired')
-    
-    target = Path(target_path)
-    if not target.exists() or is_dir: # Can only download files
-        abort(404)
-        
-    return send_file(target, as_attachment=True, download_name=target.name)
-# ---------------------------------------------
+# --- Replace the old @app.get('/s/<token>') function with these TWO new ones ---
 
-# --- MODIFIED: /s/<token> now renders a page for both files and directories ---
+# --- Replace the existing @app.get('/s/<token>') function ---
 @app.get('/s/<token>')
 def shared_entry(token):
+    """Renders the share page, now with proper folder browsing."""
     with sqlite3.connect(DB_PATH) as conn:
         row = conn.execute('SELECT target_path, is_dir, expires_at FROM shares WHERE token=?', (token,)).fetchone()
+    
     if not row:
         abort(404)
     
     target_path, is_dir, expires_at = row
     if expires_at and time.time() > expires_at:
-        return render_template('share.html', app_name=APP_NAME, error="This link has expired.", items=[])
+        return render_template('share.html', app_name=APP_NAME, error="This link has expired.")
 
-    target = Path(target_path)
-    if not target.exists():
-        return render_template('share.html', app_name=APP_NAME, error="The shared item could not be found.", items=[])
+    target_root = Path(target_path)
+    if not target_root.exists():
+        return render_template('share.html', app_name=APP_NAME, error="The shared item could not be found.")
 
-    def file_info(p):
+    # Determine the current path being viewed inside the share
+    relative_path_str = request.args.get('p', '').strip('/')
+    current_path = (target_root / relative_path_str).resolve()
+
+    # --- CRITICAL SECURITY CHECK ---
+    # Ensure the user is not trying to access files outside the shared directory
+    if not str(current_path).startswith(str(target_root.resolve())):
+        abort(403, "Forbidden") # Use 403 Forbidden for access violations
+
+    if not current_path.exists():
+        abort(404)
+
+    def file_info(p: Path):
         st = p.stat()
         return {
             'name': p.name,
             'type': 'dir' if p.is_dir() else 'file',
             'size': st.st_size,
-            'mtime': int(st.st_mtime)
+            # Path relative to the original shared item's root
+            'relative_path': p.relative_to(target_root).as_posix()
         }
 
     items = []
-    if is_dir:
-        # For a shared directory, list its contents
-        child_param = request.args.get('p', '').strip().lstrip('/')
-        current_dir = (target / child_param).resolve()
-
-        # Security check: Ensure we are still inside the shared directory
-        if not str(current_dir).startswith(str(target.resolve())):
-            abort(400, "Invalid path")
-        
-        for p in sorted(current_dir.iterdir(), key=lambda x: (x.is_file(), x.name.lower())):
+    if current_path.is_dir():
+        for p in sorted(current_path.iterdir(), key=lambda x: (not x.is_dir(), x.name.lower())):
             items.append(file_info(p))
-        
-        page_title = f"Shared Folder: {target.name}"
+        page_title = f"Shared Folder: {current_path.name}"
     else:
-        # For a single shared file, the list contains only that file
-        items.append(file_info(target))
-        page_title = f"Shared File: {target.name}"
+        # If the direct path is a file (can happen with old links), show it
+        items.append(file_info(current_path))
+        page_title = f"Shared File: {current_path.name}"
 
-    return render_template('share.html', app_name=APP_NAME, page_title=page_title, items=items, token=token)
-# --------------------------------------------------------------------------
+    # For breadcrumbs/up navigation
+    parent_path = Path(relative_path_str).parent.as_posix()
+    if parent_path == ".":
+        parent_path = ""
 
+    return render_template(
+        'share.html', 
+        app_name=APP_NAME, 
+        page_title=page_title, 
+        items=items, 
+        token=token,
+        # Pass path info to the template
+        current_relative_path=relative_path_str,
+        parent_relative_path=parent_path
+    )
+
+@app.get('/s/<token>/dl')
+def shared_download_direct(token):
+    """This new route handles the actual file download."""
+    with sqlite3.connect(DB_PATH) as conn:
+        row = conn.execute('SELECT target_path, is_dir, expires_at FROM shares WHERE token=?', (token,)).fetchone()
+    
+    if not row:
+        abort(404)
+        
+    target_path, is_dir, expires_at = row
+    if expires_at and time.time() > expires_at:
+        abort(410, description='Link expired')
+    
+    target = Path(target_path)
+    if not target.exists():
+        abort(404)
+        
+    # Security check: If sharing a directory, this route should serve its children
+    child_param = request.args.get('p', '').strip().lstrip('/')
+    if is_dir:
+        download_target = (target / child_param).resolve()
+        if not str(download_target).startswith(str(target.resolve())):
+            abort(400, "Invalid path")
+    else:
+        download_target = target
+
+    if not download_target.exists() or download_target.is_dir():
+        abort(404) # Can only download files
+
+    return send_file(download_target, as_attachment=True, download_name=download_target.name)
 
 # ==================== JSON error formatting ====================
 @app.errorhandler(400)
