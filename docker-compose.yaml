@@ -17,9 +17,13 @@ services:
       DEFAULT_UPLOAD_DIR: /mnt/drive/Video
       DB_PATH: /data/share.db
       DASH_MOUNTS: "/,/mnt/drive,/mnt/sdcard"
-      SERVICE_UNITS: "minecraft server:minecraft-bedrock.service,jellyfin:jellyfin.service,cloudflared tunnel:cloudflared.service,samba daemon:smbd.service"
+      SERVICE_UNITS: "minecraft server:minecraft-bedrock.service,jellyfin:jellyfin.service,cloudflared tunnel:cloudflared.service,samba daemon:smbd.service,torrent:aria2c.service"
       USE_NSENTER: "1"
       PAM_SERVICE: login
+      ARIA2_RPC_SECRET: Peace81!
+      ARIA2_RPC_URL: http://host.docker.internal:6800/jsonrpc
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     volumes:
       - /mnt/drive:/mnt/drive
       - /mnt/sdcard:/mnt/sdcard
