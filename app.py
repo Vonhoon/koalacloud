@@ -40,7 +40,10 @@ MAX_UPLOAD_MB = int(os.getenv('MAX_UPLOAD_MB', '51200'))
 
 DASH_MOUNTS = [Path(p) for p in os.getenv('DASH_MOUNTS', './storage').split(',')]
 
-ALLOWED_EXT = {'txt','pdf','png','jpg','jpeg','gif','mp4','mkv','avi','zip','rar','7z','srt','ass'}
+# --- MODIFIED ---
+# This is intentionally permissive. If you want to restrict file types,
+# you can add extensions back into the set.
+ALLOWED_EXT = set()
 
 
 # ==================== App ====================
@@ -78,7 +81,8 @@ def load_service_map():
 SERVICE_MAP = load_service_map()
 
 def allowed_file(name: str) -> bool:
-    return '.' in name and name.rsplit('.',1)[1].lower() in ALLOWED_EXT
+    # If ALLOWED_EXT is empty, allow all files. Otherwise, check the extension.
+    return not ALLOWED_EXT or ('.' in name and name.rsplit('.', 1)[1].lower() in ALLOWED_EXT)
 
 def check_password(user, pw) -> bool:
     p = pam.pam()
@@ -686,51 +690,71 @@ def api_share():
         conn.commit()
     return jsonify({'ok': True, 'token': token, 'url': f'/s/{token}'})
 
+# --- NEW: Direct download route for shared files ---
+@app.get('/s/<token>/dl')
+def shared_download_direct(token):
+    with sqlite3.connect(DB_PATH) as conn:
+        row = conn.execute('SELECT target_path, is_dir, expires_at FROM shares WHERE token=?', (token,)).fetchone()
+    if not row:
+        abort(404)
+    target_path, is_dir, expires_at = row
+    if expires_at and time.time() > expires_at:
+        abort(410, description='Link expired')
+    
+    target = Path(target_path)
+    if not target.exists() or is_dir: # Can only download files
+        abort(404)
+        
+    return send_file(target, as_attachment=True, download_name=target.name)
+# ---------------------------------------------
+
+# --- MODIFIED: /s/<token> now renders a page for both files and directories ---
 @app.get('/s/<token>')
 def shared_entry(token):
     with sqlite3.connect(DB_PATH) as conn:
-        row = conn.execute('SELECT token, target_path, is_dir, expires_at FROM shares WHERE token=?', (token,)).fetchone()
+        row = conn.execute('SELECT target_path, is_dir, expires_at FROM shares WHERE token=?', (token,)).fetchone()
     if not row:
         abort(404)
-    _, target_path, is_dir, expires_at = row
+    
+    target_path, is_dir, expires_at = row
     if expires_at and time.time() > expires_at:
-        abort(410, description='Link expired')
+        return render_template('share.html', app_name=APP_NAME, error="This link has expired.", items=[])
+
     target = Path(target_path)
     if not target.exists():
-        abort(404)
+        return render_template('share.html', app_name=APP_NAME, error="The shared item could not be found.", items=[])
 
-    if not is_dir:
-        # single-file share -> download
-        return send_file(target, as_attachment=True, download_name=target.name)
-
-    # folder share: allow browsing and downloading child files within the folder
-    child = request.args.get('p', '').strip()
-    current = (target / child) if child else target
-    current = current.resolve()
-    if not str(current).startswith(str(target.resolve())):
-        abort(400)
-    if current.is_file():
-        return send_file(current, as_attachment=True, download_name=current.name)
+    def file_info(p):
+        st = p.stat()
+        return {
+            'name': p.name,
+            'type': 'dir' if p.is_dir() else 'file',
+            'size': st.st_size,
+            'mtime': int(st.st_mtime)
+        }
 
     items = []
-    for ch in sorted(current.iterdir(), key=lambda x: (x.is_file(), x.name.lower())):
-        st = ch.stat()
-        items.append({'name': ch.name, 'type': 'file' if ch.is_file() else 'dir',
-                      'size': st.st_size, 'mtime': int(st.st_mtime)})
-    rel = str(current.relative_to(target)) if current != target else ''
-    parent_q = '' if rel == '' else f"?p={Path(rel).parent.as_posix()}"
-    html = [f"<h3>Shared folder: /{target.name}{('/'+rel) if rel else ''}</h3>"]
-    if rel:
-        html.append(f'<p><a href="/s/{token}{parent_q}">⬅️ Up</a></p>')
-    html.append('<ul>')
-    for it in items:
-        if it['type'] == 'dir':
-            html.append(f'<li>📁 <a href="/s/{token}?p={(Path(rel)/it["name"]).as_posix()}">{it["name"]}</a></li>')
-        else:
-            href = f'/s/{token}?p={(Path(rel)/it["name"]).as_posix()}'
-            html.append(f'<li>📄 <a href="{href}">{it["name"]}</a> — <a href="{href}">download</a></li>')
-    html.append('</ul>')
-    return "\n".join(html)
+    if is_dir:
+        # For a shared directory, list its contents
+        child_param = request.args.get('p', '').strip().lstrip('/')
+        current_dir = (target / child_param).resolve()
+
+        # Security check: Ensure we are still inside the shared directory
+        if not str(current_dir).startswith(str(target.resolve())):
+            abort(400, "Invalid path")
+        
+        for p in sorted(current_dir.iterdir(), key=lambda x: (x.is_file(), x.name.lower())):
+            items.append(file_info(p))
+        
+        page_title = f"Shared Folder: {target.name}"
+    else:
+        # For a single shared file, the list contains only that file
+        items.append(file_info(target))
+        page_title = f"Shared File: {target.name}"
+
+    return render_template('share.html', app_name=APP_NAME, page_title=page_title, items=items, token=token)
+# --------------------------------------------------------------------------
+
 
 # ==================== JSON error formatting ====================
 @app.errorhandler(400)
@@ -741,6 +765,10 @@ def shared_entry(token):
 @app.errorhandler(500)
 def json_errors(err):
     code = getattr(err, 'code', 500)
+    # Check if the request expects HTML, and if so, don't return JSON
+    if 'text/html' in request.headers.get('Accept', ''):
+        # You might want to render a proper error template here
+        return f"<h1>Error {code}</h1><p>{getattr(err, 'description', str(err))}</p>", code
     return jsonify({'ok': False, 'error': getattr(err, 'description', str(err)), 'code': code}), code
 
 # ==================== Main ====================

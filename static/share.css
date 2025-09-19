@@ -1,0 +1,122 @@
+/* A modern, clean, and mobile-first stylesheet for the share page */
+:root {
+  --bg-color: #f8f9fa;
+  --card-bg: #ffffff;
+  --text-color: #212529;
+  --muted-text: #6c757d;
+  --accent-color: #007bff;
+  --border-color: #dee2e6;
+  --shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  background-color: var(--bg-color);
+  color: var(--text-color);
+  margin: 0;
+  padding: 1rem;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  min-height: 100vh;
+}
+
+.container {
+  width: 100%;
+  max-width: 600px;
+  margin: 0 auto;
+}
+
+header {
+  text-align: center;
+  margin-bottom: 2rem;
+}
+
+.logo {
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  margin-bottom: 1rem;
+  box-shadow: var(--shadow);
+}
+
+header h1 {
+  font-size: 1.75rem;
+  font-weight: 600;
+  margin: 0;
+}
+
+.card {
+  background-color: var(--card-bg);
+  border-radius: 12px;
+  padding: 1.5rem;
+  box-shadow: var(--shadow);
+  border: 1px solid var(--border-color);
+  margin-bottom: 1rem;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.card.error {
+  background-color: #fff3f3;
+  color: #d9534f;
+  text-align: center;
+}
+
+.file-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.file-item {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  text-decoration: none;
+  color: var(--text-color);
+  padding: 1rem;
+}
+
+.file-item:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 15px rgba(0, 0, 0, 0.08);
+}
+
+.file-item .icon {
+  font-size: 2rem;
+  flex-shrink: 0;
+}
+
+.file-item .details {
+  flex-grow: 1;
+  overflow: hidden;
+}
+
+.file-item .name {
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.file-item .meta {
+  font-size: 0.9rem;
+  color: var(--muted-text);
+}
+
+.file-item .download-icon {
+  font-size: 1.5rem;
+  opacity: 0.5;
+  transition: opacity 0.2s ease;
+}
+
+.file-item:hover .download-icon {
+  opacity: 1;
+}
+
+footer {
+  text-align: center;
+  margin-top: 2.5rem;
+  color: var(--muted-text);
+  font-size: 0.9rem;
+}

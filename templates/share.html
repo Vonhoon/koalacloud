@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>{{ app_name }} — Shared File</title>
+  <link href="{{ url_for('static', filename='share.css') }}" rel="stylesheet">
+</head>
+<body>
+  <div class="container">
+    <header>
+      <img src="{{ url_for('static', filename='koala.jpg') }}" alt="Koala Logo" class="logo">
+      <h1>{{ page_title or 'Shared Files' }}</h1>
+    </header>
+
+    {% if error %}
+      <div class="card error">
+        <p>🚫 {{ error }}</p>
+      </div>
+    {% elif items %}
+      <div class="file-list">
+        {% for item in items %}
+          <a href="{{ url_for('shared_download_direct', token=token, p=item.name) }}" class="card file-item" download>
+            <div class="icon">
+              {% if item.type == 'dir' %}
+                <span>📁</span>
+              {% else %}
+                <span>📄</span>
+              {% endif %}
+            </div>
+            <div class="details">
+              <div class="name">{{ item.name }}</div>
+              <div class="meta">
+                {% if item.type == 'file' %}
+                  {{ (item.size / 1024 / 1024)|round(2) }} MB
+                {% else %}
+                  Folder
+                {% endif %}
+              </div>
+            </div>
+            <div class="download-icon">
+              <span>⬇️</span>
+            </div>
+          </a>
+        {% endfor %}
+      </div>
+    {% else %}
+        <div class="card">
+            <p>This share link is empty.</p>
+        </div>
+    {% endif %}
+
+    <footer>
+      <p>Powered by {{ app_name }}</p>
+    </footer>
+  </div>
+</body>
+</html>
