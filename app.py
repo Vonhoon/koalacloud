@@ -9,6 +9,9 @@ import json
 import urllib.request
 from pathlib import Path
 from functools import wraps
+import threading
+from urllib.parse import urlparse, parse_qs
+import unicodedata
 
 from flask import Flask, render_template, request, jsonify, send_file, abort, session, redirect
 from flask_socketio import SocketIO
@@ -16,10 +19,7 @@ import pam
 import psutil
 from werkzeug.utils import secure_filename
 from werkzeug.middleware.proxy_fix import ProxyFix
-# --- NEW IMPORTS ---
-import threading
 import yt_dlp
-# -------------------
 
 # ==================== Config ====================
 APP_NAME = os.getenv('APP_NAME', 'Koala Cloud')
@@ -40,11 +40,7 @@ MAX_UPLOAD_MB = int(os.getenv('MAX_UPLOAD_MB', '51200'))
 
 DASH_MOUNTS = [Path(p) for p in os.getenv('DASH_MOUNTS', './storage').split(',')]
 
-# --- MODIFIED ---
-# This is intentionally permissive. If you want to restrict file types,
-# you can add extensions back into the set.
-ALLOWED_EXT = set()
-
+ALLOWED_EXT = {'txt','pdf','png','jpg','jpeg','gif','mp4','mkv','avi','zip','rar','7z','srt','ass'}
 
 # ==================== App ====================
 app = Flask(__name__, static_folder="static")
@@ -81,8 +77,7 @@ def load_service_map():
 SERVICE_MAP = load_service_map()
 
 def allowed_file(name: str) -> bool:
-    # If ALLOWED_EXT is empty, allow all files. Otherwise, check the extension.
-    return not ALLOWED_EXT or ('.' in name and name.rsplit('.', 1)[1].lower() in ALLOWED_EXT)
+    return '.' in name and name.rsplit('.',1)[1].lower() in ALLOWED_EXT
 
 def check_password(user, pw) -> bool:
     p = pam.pam()
@@ -105,8 +100,8 @@ def get_system_stats():
     return {
         'cpu_percent': float(cpu),
         'memory_percent': float(mem),
-        'temps': _get_temps(),   # NEW
-        'net': _get_net(),       # NEW
+        'temps': _get_temps(),
+        'net': _get_net(),
     }
 
 def auth_required_json(func):
@@ -131,14 +126,12 @@ def _safe_join_download(rel_path: str) -> Path:
         abort(400, 'Path escapes download root')
     return p
 
-# --- Temps & Network helpers ---
 _net_last = {"ts": None, "rx": {}, "tx": {}}
 
 def _get_temps():
     out = []
     try:
         temps = psutil.sensors_temperatures(fahrenheit=False) or {}
-        # prefer common chips/labels
         for chip, readings in temps.items():
             for r in readings:
                 label = r.label or chip
@@ -153,18 +146,15 @@ def _get_temps():
     return out
 
 def _get_net():
-    """Return per-interface link state, ip, speed(Mbps), and rx/tx rates (bytes/s)."""
     now = time.time()
     stats = psutil.net_if_stats() or {}
     addrs = psutil.net_if_addrs() or {}
     io = psutil.net_io_counters(pernic=True) or {}
 
-    # exclude loopback & obvious virtuals
     def _skip(name):
         n = name.lower()
         return n.startswith(("lo", "docker", "veth", "br-", "virbr", "vmnet", "zt"))
 
-    # compute rates
     dt = (now - (_net_last["ts"] or now)) or 1.0
     rates = {}
     for name, c in io.items():
@@ -176,7 +166,7 @@ def _get_net():
             "bytes_recv": c.bytes_recv,
             "bytes_sent": c.bytes_sent,
         }
-    # update cache
+
     _net_last["ts"] = now
     _net_last["rx"] = {n: io[n].bytes_recv for n in io}
     _net_last["tx"] = {n: io[n].bytes_sent for n in io}
@@ -189,7 +179,6 @@ def _get_net():
         if name in addrs:
             for a in addrs[name]:
                 if getattr(a, "family", None).__class__.__name__ == "AddressFamily":
-                    # psutil >= 5.9
                     fam = a.family.name
                 else:
                     fam = str(a.family)
@@ -206,11 +195,10 @@ def _get_net():
         }
     return out
 
-
 # ==================== Aria2 config ====================
-ARIA2_RPC_URL    = os.getenv('ARIA2_RPC_URL', 'http://host.docker.internal:6800/jsonrpc')
-ARIA2_RPC_SECRET = os.getenv('ARIA2_RPC_SECRET', '')  # matches rpc-secret in aria2.conf
-DOWNLOAD_ROOT    = Path(os.getenv('DOWNLOAD_ROOT', '/mnt/drive')).resolve()
+ARIA2_RPC_URL = os.getenv('ARIA2_RPC_URL', 'http://host.docker.internal:6800/jsonrpc')
+ARIA2_RPC_SECRET = os.getenv('ARIA2_RPC_SECRET', '')
+DOWNLOAD_ROOT = Path(os.getenv('DOWNLOAD_ROOT', '/mnt/drive')).resolve()
 
 # ==================== Aria2 RPC ====================
 def _aria2_call(method, params=None):
@@ -221,29 +209,83 @@ def _aria2_call(method, params=None):
     req = urllib.request.Request(ARIA2_RPC_URL, data=data, headers={"Content-Type": "application/json"})
     with urllib.request.urlopen(req, timeout=10) as r:
         return json.loads(r.read().decode())
-    
 
 # ==================== yt-dlp helper ====================
-def run_youtubedl(url, dest_path):
+YTDL_TASKS = {}
+
+def normalize_filename_hook(d):
+    if d['status'] == 'finished':
+        filepath = d.get('filename')
+        if not filepath or not os.path.exists(filepath):
+            return
+        directory, filename = os.path.split(filepath)
+        normalized_filename = unicodedata.normalize('NFC', filename)
+        if filename != normalized_filename:
+            try:
+                os.rename(filepath, os.path.join(directory, normalized_filename))
+            except OSError:
+                pass
+
+def ytdl_progress_hook(d):
+    task_id = d.get('info_dict', {}).get('id')
+    if not task_id or task_id not in YTDL_TASKS:
+        return
+    
+    YTDL_TASKS[task_id]['status'] = d['status']
+    if d['status'] == 'downloading':
+        YTDL_TASKS[task_id]['progress'] = d.get('_percent_str', '0%').strip()
+        YTDL_TASKS[task_id]['speed'] = d.get('_speed_str', '').strip()
+    elif d['status'] == 'finished':
+        YTDL_TASKS[task_id]['progress'] = '100%'
+        with sqlite3.connect(DB_PATH) as conn:
+            conn.execute(
+                "UPDATE youtubedl_history SET completed_at=? WHERE id=?",
+                (int(time.time()), YTDL_TASKS[task_id]['db_id'])
+            )
+            conn.commit()
+
+
+def get_playlist_id(url):
     try:
-        ydl_opts = {
-            'format': 'bestvideo[height<=1080]+bestaudio/best',
-            'outtmpl': f'{dest_path}/%(title)s.%(ext)s',
-            'noplaylist': True,
-        }
+        query = parse_qs(urlparse(url).query)
+        if 'list' in query:
+            playlist_id = query['list'][0]
+            if playlist_id.startswith(('PL', 'OL', 'UU', 'FL')):
+                return playlist_id
+    except Exception:
+        return None
+    return None
+
+def run_youtubedl(url, dest_path, audio_only, task_id, db_id):
+    playlist_id = get_playlist_id(url)
+    download_url = f'https://www.youtube.com/playlist?list={playlist_id}' if playlist_id else url
+    
+    output_template = str(dest_path / ('%(playlist_title)s/%(playlist_index)s - %(title)s.%(ext)s' if playlist_id else '%(title)s.%(ext)s'))
+
+    ydl_opts = {
+        'outtmpl': output_template,
+        'noplaylist': playlist_id is None,
+        'progress_hooks': [ytdl_progress_hook],
+        'postprocessor_hooks': [normalize_filename_hook],
+        'ignoreerrors': True,
+    }
+
+    if audio_only:
+        ydl_opts['format'] = 'bestaudio/best'
+        ydl_opts['postprocessors'] = [{'key': 'FFmpegExtractAudio', 'preferredcodec': 'mp3', 'preferredquality': '192'}]
+
+    try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            ydl.download([url])
-        print(f"yt-dlp: Successfully downloaded {url}")
-    except Exception as e:
-        print(f"yt-dlp: Error downloading {url}: {e}")
+            info = ydl.extract_info(download_url, download=False)
+            title = info.get('title', 'YouTube Video')
+            YTDL_TASKS[task_id] = {'name': title, 'status': 'starting', 'progress': '0%', 'speed': '', 'db_id': db_id, 'id': task_id}
+            ydl.download([download_url])
+    except Exception:
+        if task_id in YTDL_TASKS:
+            YTDL_TASKS[task_id]['status'] = 'error'
 
 # ==================== Background tasks ====================
 def _infer_name(files, bt):
-    """Return a nice display name for a torrent:
-       1) bittorrent.info.name when present
-       2) common parent folder of files
-       3) first file name
-    """
     try:
         if bt and isinstance(bt, dict):
             info = bt.get("info") or {}
@@ -271,7 +313,6 @@ def _infer_name(files, bt):
     return "(unknown)"
 
 def _record_history(rows):
-    """Insert completed torrents into torrent_history once."""
     if not rows:
         return
     with sqlite3.connect(DB_PATH) as conn:
@@ -281,8 +322,6 @@ def _record_history(rows):
             files = t.get("files") or []
             name  = _infer_name(files, bt)
             total = int(t.get("totalLength") or 0)
-
-            # derive destination (parent dir of first file under DOWNLOAD_ROOT)
             dest = "/"
             try:
                 if files:
@@ -293,7 +332,6 @@ def _record_history(rows):
                 pass
 
             ts = int(time.time())
-            # avoid duplicates by gid
             cur = conn.execute("SELECT 1 FROM torrent_history WHERE gid=? LIMIT 1", (gid,))
             if not cur.fetchone():
                 conn.execute(
@@ -309,11 +347,8 @@ def _stats_task():
         socketio.sleep(2)
 
 def _torrent_task():
-    # Emit only "in-progress" items (active + waiting/metadata).
-    # Completed items are written to history and not shown in progress.
     while True:
         try:
-            # ask aria2 for richer fields incl. bittorrent (for proper names)
             fields = ["gid","status","totalLength","completedLength","downloadSpeed","files","bittorrent"]
 
             active  = _aria2_call("aria2.tellActive",   [fields]).get("result", [])
@@ -324,23 +359,32 @@ def _torrent_task():
                 row = dict(row)
                 row["name"] = _infer_name(row.get("files") or [], row.get("bittorrent") or {})
                 total = int(row.get("totalLength") or 0)
-                row["isMetadata"] = (total == 0)   # show “Fetching metadata…” in UI when true
+                row["isMetadata"] = (total == 0)
                 return row
 
-            # progress list = active + waiting/paused (NOT including 'complete' or 'error')
             progress = [enrich(r) for r in (active + waiting) if r.get("status") in ("active","waiting","paused")]
-
-            # completed -> to history (once) and do not include in progress
             completed_rows = [enrich(r) for r in stopped if r.get("status") == "complete"]
             if completed_rows:
                 _record_history(completed_rows)
 
             socketio.emit("torrent_status", {"progress": progress})
         except Exception:
-            # don’t crash the loop on transient RPC errors
             pass
         socketio.sleep(2)
 
+def _ytdl_task():
+    while True:
+        active_tasks = {k: v for k, v in YTDL_TASKS.items() if v.get('status') not in ['finished', 'error']}
+        socketio.emit("ytdl_status", {"progress": list(active_tasks.values())})
+        
+        # Clean up old tasks
+        for task_id, task_data in list(YTDL_TASKS.items()):
+            if task_data.get('status') in ['finished', 'error']:
+                time.sleep(5) # give frontend time to update
+                if task_id in YTDL_TASKS:
+                    del YTDL_TASKS[task_id]
+
+        socketio.sleep(2)
 
 _started = False
 @app.before_request
@@ -349,6 +393,7 @@ def _start_tasks_once():
     if not _started:
         socketio.start_background_task(_stats_task)
         socketio.start_background_task(_torrent_task)
+        socketio.start_background_task(_ytdl_task)
         _started = True
 
 # ==================== DB ====================
@@ -371,6 +416,17 @@ def _db_init():
                 gid TEXT,
                 dest TEXT NOT NULL,
                 size_bytes INTEGER,
+                added_at INTEGER NOT NULL,
+                completed_at INTEGER
+            )
+        """)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS youtubedl_history (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL,
+                url TEXT,
+                dest TEXT NOT NULL,
+                audio_only INTEGER,
                 added_at INTEGER NOT NULL,
                 completed_at INTEGER
             )
@@ -585,7 +641,6 @@ def torrents_remove():
     try:
         _aria2_call("aria2.remove", [gid])
     finally:
-        # remove from result list as well (does not delete files)
         try:
             _aria2_call("aria2.removeDownloadResult", [gid])
         except Exception:
@@ -659,16 +714,54 @@ def youtubedl_add():
     data = request.get_json(force=True, silent=True) or {}
     link = (data.get('link') or '').strip()
     dest = (data.get('dest') or '').strip()
+    audio_only = bool(data.get('audio_only'))
     if not link:
         abort(400, 'Missing link')
 
     dpath = _safe_join_download(dest)
     dpath.mkdir(parents=True, exist_ok=True)
     
-    thread = threading.Thread(target=run_youtubedl, args=(link, dpath))
+    task_id = secrets.token_hex(8)
+
+    with sqlite3.connect(DB_PATH) as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            """INSERT INTO youtubedl_history(name, url, dest, audio_only, added_at)
+               VALUES (?,?,?,?,?)""",
+            ("Fetching title...", link, dest, 1 if audio_only else 0, int(time.time()))
+        )
+        conn.commit()
+        db_id = cursor.lastrowid
+
+    thread = threading.Thread(target=run_youtubedl, args=(link, dpath, audio_only, task_id, db_id))
     thread.start()
     return jsonify({'ok': True, 'result': {'message': 'Video download started in the background.'}})
 
+@app.get('/admin/youtubedl/history')
+@auth_required_json
+def ytdl_history():
+    with sqlite3.connect(DB_PATH) as conn:
+        rows = conn.execute("""
+            SELECT id, name, url, dest, audio_only, added_at, completed_at
+            FROM youtubedl_history ORDER BY COALESCE(completed_at, added_at) DESC LIMIT 500
+        """).fetchall()
+    out = []
+    for r in rows:
+        out.append({'id': r[0], 'name': r[1], 'url': r[2], 'dest': r[3],
+                    'audio_only': bool(r[4]), 'added_at': r[5], 'completed_at': r[6]})
+    return jsonify({'ok': True, 'history': out})
+
+@app.post('/admin/youtubedl/history/delete')
+@auth_required_json
+def ytdl_history_delete():
+    data = request.get_json(force=True, silent=True) or {}
+    hid = data.get('id')
+    if hid is None:
+        abort(400, 'Missing history id')
+    with sqlite3.connect(DB_PATH) as conn:
+        conn.execute("DELETE FROM youtubedl_history WHERE id=?", (hid,))
+        conn.commit()
+    return jsonify({'ok': True})
 
 # ==================== Public share endpoints (no auth) ====================
 @app.post('/api/share')
@@ -690,104 +783,49 @@ def api_share():
         conn.commit()
     return jsonify({'ok': True, 'token': token, 'url': f'/s/{token}'})
 
-# --- Replace the old @app.get('/s/<token>') function with these TWO new ones ---
-
-# --- Replace the existing @app.get('/s/<token>') function ---
 @app.get('/s/<token>')
 def shared_entry(token):
-    """Renders the share page, now with proper folder browsing."""
     with sqlite3.connect(DB_PATH) as conn:
-        row = conn.execute('SELECT target_path, is_dir, expires_at FROM shares WHERE token=?', (token,)).fetchone()
-    
+        row = conn.execute('SELECT token, target_path, is_dir, expires_at FROM shares WHERE token=?', (token,)).fetchone()
     if not row:
         abort(404)
-    
-    target_path, is_dir, expires_at = row
-    if expires_at and time.time() > expires_at:
-        return render_template('share.html', app_name=APP_NAME, error="This link has expired.")
-
-    target_root = Path(target_path)
-    if not target_root.exists():
-        return render_template('share.html', app_name=APP_NAME, error="The shared item could not be found.")
-
-    # Determine the current path being viewed inside the share
-    relative_path_str = request.args.get('p', '').strip('/')
-    current_path = (target_root / relative_path_str).resolve()
-
-    # --- CRITICAL SECURITY CHECK ---
-    # Ensure the user is not trying to access files outside the shared directory
-    if not str(current_path).startswith(str(target_root.resolve())):
-        abort(403, "Forbidden") # Use 403 Forbidden for access violations
-
-    if not current_path.exists():
-        abort(404)
-
-    def file_info(p: Path):
-        st = p.stat()
-        return {
-            'name': p.name,
-            'type': 'dir' if p.is_dir() else 'file',
-            'size': st.st_size,
-            # Path relative to the original shared item's root
-            'relative_path': p.relative_to(target_root).as_posix()
-        }
-
-    items = []
-    if current_path.is_dir():
-        for p in sorted(current_path.iterdir(), key=lambda x: (not x.is_dir(), x.name.lower())):
-            items.append(file_info(p))
-        page_title = f"Shared Folder: {current_path.name}"
-    else:
-        # If the direct path is a file (can happen with old links), show it
-        items.append(file_info(current_path))
-        page_title = f"Shared File: {current_path.name}"
-
-    # For breadcrumbs/up navigation
-    parent_path = Path(relative_path_str).parent.as_posix()
-    if parent_path == ".":
-        parent_path = ""
-
-    return render_template(
-        'share.html', 
-        app_name=APP_NAME, 
-        page_title=page_title, 
-        items=items, 
-        token=token,
-        # Pass path info to the template
-        current_relative_path=relative_path_str,
-        parent_relative_path=parent_path
-    )
-
-@app.get('/s/<token>/dl')
-def shared_download_direct(token):
-    """This new route handles the actual file download."""
-    with sqlite3.connect(DB_PATH) as conn:
-        row = conn.execute('SELECT target_path, is_dir, expires_at FROM shares WHERE token=?', (token,)).fetchone()
-    
-    if not row:
-        abort(404)
-        
-    target_path, is_dir, expires_at = row
+    _, target_path, is_dir, expires_at = row
     if expires_at and time.time() > expires_at:
         abort(410, description='Link expired')
-    
     target = Path(target_path)
     if not target.exists():
         abort(404)
-        
-    # Security check: If sharing a directory, this route should serve its children
-    child_param = request.args.get('p', '').strip().lstrip('/')
-    if is_dir:
-        download_target = (target / child_param).resolve()
-        if not str(download_target).startswith(str(target.resolve())):
-            abort(400, "Invalid path")
-    else:
-        download_target = target
 
-    if not download_target.exists() or download_target.is_dir():
-        abort(404) # Can only download files
+    if not is_dir:
+        return send_file(target, as_attachment=True, download_name=target.name)
 
-    return send_file(download_target, as_attachment=True, download_name=download_target.name)
+    child = request.args.get('p', '').strip()
+    current = (target / child) if child else target
+    current = current.resolve()
+    if not str(current).startswith(str(target.resolve())):
+        abort(400)
+    if current.is_file():
+        return send_file(current, as_attachment=True, download_name=current.name)
+
+    items = []
+    for ch in sorted(current.iterdir(), key=lambda x: (x.is_file(), x.name.lower())):
+        st = ch.stat()
+        items.append({'name': ch.name, 'type': 'file' if ch.is_file() else 'dir',
+                      'size': st.st_size, 'mtime': int(st.st_mtime)})
+    rel = str(current.relative_to(target)) if current != target else ''
+    parent_q = '' if rel == '' else f"?p={Path(rel).parent.as_posix()}"
+    html = [f"<h3>Shared folder: /{target.name}{('/'+rel) if rel else ''}</h3>"]
+    if rel:
+        html.append(f'<p><a href="/s/{token}{parent_q}">⬅️ Up</a></p>')
+    html.append('<ul>')
+    for it in items:
+        if it['type'] == 'dir':
+            html.append(f'<li>📁 <a href="/s/{token}?p={(Path(rel)/it["name"]).as_posix()}">{it["name"]}</a></li>')
+        else:
+            href = f'/s/{token}?p={(Path(rel)/it["name"]).as_posix()}'
+            html.append(f'<li>📄 <a href="{href}">{it["name"]}</a> — <a href="{href}">download</a></li>')
+    html.append('</ul>')
+    return "\n".join(html)
 
 # ==================== JSON error formatting ====================
 @app.errorhandler(400)
@@ -798,10 +836,6 @@ def shared_download_direct(token):
 @app.errorhandler(500)
 def json_errors(err):
     code = getattr(err, 'code', 500)
-    # Check if the request expects HTML, and if so, don't return JSON
-    if 'text/html' in request.headers.get('Accept', ''):
-        # You might want to render a proper error template here
-        return f"<h1>Error {code}</h1><p>{getattr(err, 'description', str(err))}</p>", code
     return jsonify({'ok': False, 'error': getattr(err, 'description', str(err)), 'code': code}), code
 
 # ==================== Main ====================
