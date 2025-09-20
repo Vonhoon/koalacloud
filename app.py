@@ -9,21 +9,20 @@ import json
 import urllib.request
 from pathlib import Path
 from functools import wraps
-import threading
-from urllib.parse import urlparse, parse_qs
-import unicodedata
-from zoneinfo import ZoneInfo 
+from datetime import datetime
+import glob
+from zoneinfo import ZoneInfo
 
-from flask import Flask, render_template, request, jsonify, send_file, abort, session, redirect
+from flask import Flask, render_template, request, jsonify, send_file, abort, session, redirect, url_for
 from flask_socketio import SocketIO
 import pam
 import psutil
 from werkzeug.utils import secure_filename
 from werkzeug.middleware.proxy_fix import ProxyFix
+# --- NEW IMPORTS ---
+import threading
 import yt_dlp
-
-from datetime import datetime
-import glob
+# -------------------
 
 # ==================== Config ====================
 APP_NAME = os.getenv('APP_NAME', 'Koala Cloud')
@@ -45,6 +44,7 @@ MAX_UPLOAD_MB = int(os.getenv('MAX_UPLOAD_MB', '51200'))
 DASH_MOUNTS = [Path(p) for p in os.getenv('DASH_MOUNTS', './storage').split(',')]
 
 ALLOWED_EXT = {'txt','pdf','png','jpg','jpeg','gif','mp4','mkv','avi','zip','rar','7z','srt','ass'}
+
 
 # ==================== App ====================
 app = Flask(__name__, static_folder="static")
@@ -104,8 +104,8 @@ def get_system_stats():
     return {
         'cpu_percent': float(cpu),
         'memory_percent': float(mem),
-        'temps': _get_temps(),
-        'net': _get_net(),
+        'temps': _get_temps(),   # NEW
+        'net': _get_net(),       # NEW
     }
 
 def auth_required_json(func):
@@ -113,6 +113,16 @@ def auth_required_json(func):
     def wrapper(*args, **kwargs):
         if not session.get('logged_in'):
             return jsonify({'ok': False, 'error': 'Unauthorized', 'code': 401}), 401
+        return func(*args, **kwargs)
+    return wrapper
+
+# --- NEW DECORATOR FOR PAGES ---
+def auth_required_page(func):
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        if not session.get('logged_in'):
+            # For pages, redirect to the main page which shows the login form
+            return redirect(url_for('drive_root')) 
         return func(*args, **kwargs)
     return wrapper
 
@@ -130,12 +140,14 @@ def _safe_join_download(rel_path: str) -> Path:
         abort(400, 'Path escapes download root')
     return p
 
+# --- Temps & Network helpers ---
 _net_last = {"ts": None, "rx": {}, "tx": {}}
 
 def _get_temps():
     out = []
     try:
         temps = psutil.sensors_temperatures(fahrenheit=False) or {}
+        # prefer common chips/labels
         for chip, readings in temps.items():
             for r in readings:
                 label = r.label or chip
@@ -150,15 +162,18 @@ def _get_temps():
     return out
 
 def _get_net():
+    """Return per-interface link state, ip, speed(Mbps), and rx/tx rates (bytes/s)."""
     now = time.time()
     stats = psutil.net_if_stats() or {}
     addrs = psutil.net_if_addrs() or {}
     io = psutil.net_io_counters(pernic=True) or {}
 
+    # exclude loopback & obvious virtuals
     def _skip(name):
         n = name.lower()
         return n.startswith(("lo", "docker", "veth", "br-", "virbr", "vmnet", "zt"))
 
+    # compute rates
     dt = (now - (_net_last["ts"] or now)) or 1.0
     rates = {}
     for name, c in io.items():
@@ -170,7 +185,7 @@ def _get_net():
             "bytes_recv": c.bytes_recv,
             "bytes_sent": c.bytes_sent,
         }
-
+    # update cache
     _net_last["ts"] = now
     _net_last["rx"] = {n: io[n].bytes_recv for n in io}
     _net_last["tx"] = {n: io[n].bytes_sent for n in io}
@@ -183,6 +198,7 @@ def _get_net():
         if name in addrs:
             for a in addrs[name]:
                 if getattr(a, "family", None).__class__.__name__ == "AddressFamily":
+                    # psutil >= 5.9
                     fam = a.family.name
                 else:
                     fam = str(a.family)
@@ -199,10 +215,11 @@ def _get_net():
         }
     return out
 
+
 # ==================== Aria2 config ====================
-ARIA2_RPC_URL = os.getenv('ARIA2_RPC_URL', 'http://host.docker.internal:6800/jsonrpc')
-ARIA2_RPC_SECRET = os.getenv('ARIA2_RPC_SECRET', '')
-DOWNLOAD_ROOT = Path(os.getenv('DOWNLOAD_ROOT', '/mnt/drive')).resolve()
+ARIA2_RPC_URL    = os.getenv('ARIA2_RPC_URL', 'http://host.docker.internal:6800/jsonrpc')
+ARIA2_RPC_SECRET = os.getenv('ARIA2_RPC_SECRET', '')  # matches rpc-secret in aria2.conf
+DOWNLOAD_ROOT    = Path(os.getenv('DOWNLOAD_ROOT', '/mnt/drive')).resolve()
 
 # ==================== Aria2 RPC ====================
 def _aria2_call(method, params=None):
@@ -213,128 +230,29 @@ def _aria2_call(method, params=None):
     req = urllib.request.Request(ARIA2_RPC_URL, data=data, headers={"Content-Type": "application/json"})
     with urllib.request.urlopen(req, timeout=10) as r:
         return json.loads(r.read().decode())
+    
 
 # ==================== yt-dlp helper ====================
-YTDL_TASKS = {}
-
-def normalize_filename_hook(d):
-    if d['status'] == 'finished':
-        filepath = d.get('filename')
-        if not filepath or not os.path.exists(filepath):
-            return
-        directory, filename = os.path.split(filepath)
-        normalized_filename = unicodedata.normalize('NFC', filename)
-        if filename != normalized_filename:
-            try:
-                os.rename(filepath, os.path.join(directory, normalized_filename))
-            except OSError:
-                pass
-def run_youtubedl(url, dest_path, audio_only, task_id, db_id):
-    
-    playlist_id = get_playlist_id(url)
-    download_url = f'https://www.youtube.com/playlist?list={playlist_id}' if playlist_id else url
-    
-    output_template = str(dest_path / ('%(playlist_title)s/%(playlist_index)s - %(title)s.%(ext)s' if playlist_id else '%(title)s.%(ext)s'))
-
-    ydl_opts = {
-        'outtmpl': output_template,
-        'noplaylist': playlist_id is None,
-        'postprocessor_hooks': [normalize_filename_hook],
-        'ignoreerrors': True,
-        # No progress hook for now to ensure stability
-    }
-
-    if audio_only:
-        ydl_opts['format'] = 'bestaudio/best'
-        ydl_opts['postprocessors'] = [{'key': 'FFmpegExtractAudio', 'preferredcodec': 'mp3', 'preferredquality': '192'}]
-
+def run_youtubedl(url, dest_path):
     try:
-        # Get title first for the database
-        with yt_dlp.YoutubeDL({'quiet': True, 'extract_flat': True}) as ydl:
-            info = ydl.extract_info(download_url, download=False)
-            title = info.get('title', 'YouTube Content')
-            with sqlite3.connect(DB_PATH) as conn:
-                conn.execute("UPDATE youtubedl_history SET name=? WHERE id=?", (title, db_id))
-                conn.commit()
-
-        # Perform download
+        ydl_opts = {
+            'format': 'bestvideo[height<=1080]+bestaudio/best',
+            'outtmpl': f'{dest_path}/%(title)s.%(ext)s',
+            'noplaylist': True,
+        }
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            ydl.download([download_url])
-        
-        # Mark as complete in the database
-        with sqlite3.connect(DB_PATH) as conn:
-            conn.execute("UPDATE youtubedl_history SET completed_at=? WHERE id=?", (int(time.time()), db_id))
-            conn.commit()
-        
-        # Mark as finished for the UI task list
-        if task_id in YTDL_TASKS:
-            YTDL_TASKS[task_id]['status'] = 'finished'
-
+            ydl.download([url])
+        print(f"yt-dlp: Successfully downloaded {url}")
     except Exception as e:
-        print(f"YTDL Error for task {task_id}: {e}")
-        if task_id in YTDL_TASKS:
-            YTDL_TASKS[task_id]['status'] = 'error'
-
-
-def get_playlist_id(url):
-    try:
-        query = parse_qs(urlparse(url).query)
-        if 'list' in query:
-            playlist_id = query['list'][0]
-            if playlist_id.startswith(('PL', 'OL', 'UU', 'FL')):
-                return playlist_id
-    except Exception:
-        return None
-    return None
-
-def run_youtubedl(url, dest_path, audio_only, task_id, db_id):
-    
-    playlist_id = get_playlist_id(url)
-    download_url = f'https://www.youtube.com/playlist?list={playlist_id}' if playlist_id else url
-    
-    output_template = str(dest_path / ('%(playlist_title)s/%(playlist_index)s - %(title)s.%(ext)s' if playlist_id else '%(title)s.%(ext)s'))
-
-    ydl_opts = {
-        'outtmpl': output_template,
-        'noplaylist': playlist_id is None,
-        'postprocessor_hooks': [normalize_filename_hook],
-        'ignoreerrors': True,
-        # No progress hook for now to ensure stability
-    }
-
-    if audio_only:
-        ydl_opts['format'] = 'bestaudio/best'
-        ydl_opts['postprocessors'] = [{'key': 'FFmpegExtractAudio', 'preferredcodec': 'mp3', 'preferredquality': '192'}]
-
-    try:
-        # Get title first for the database
-        with yt_dlp.YoutubeDL({'quiet': True, 'extract_flat': True}) as ydl:
-            info = ydl.extract_info(download_url, download=False)
-            title = info.get('title', 'YouTube Content')
-            with sqlite3.connect(DB_PATH) as conn:
-                conn.execute("UPDATE youtubedl_history SET name=? WHERE id=?", (title, db_id))
-                conn.commit()
-
-        # Perform download
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            ydl.download([download_url])
-        
-        # Mark as complete in the database
-        with sqlite3.connect(DB_PATH) as conn:
-            conn.execute("UPDATE youtubedl_history SET completed_at=? WHERE id=?", (int(time.time()), db_id))
-            conn.commit()
-        
-        # Mark as finished for the UI task list
-        if task_id in YTDL_TASKS:
-            YTDL_TASKS[task_id]['status'] = 'finished'
-
-    except Exception as e:
-        print(f"YTDL Error for task {task_id}: {e}")
-        if task_id in YTDL_TASKS:
-            YTDL_TASKS[task_id]['status'] = 'error'
+        print(f"yt-dlp: Error downloading {url}: {e}")
 
 # ==================== Background tasks ====================
 def _infer_name(files, bt):
+    """Return a nice display name for a torrent:
+       1) bittorrent.info.name when present
+       2) common parent folder of files
+       3) first file name
+    """
     try:
         if bt and isinstance(bt, dict):
             info = bt.get("info") or {}
@@ -362,6 +280,7 @@ def _infer_name(files, bt):
     return "(unknown)"
 
 def _record_history(rows):
+    """Insert completed torrents into torrent_history once."""
     if not rows:
         return
     with sqlite3.connect(DB_PATH) as conn:
@@ -371,6 +290,8 @@ def _record_history(rows):
             files = t.get("files") or []
             name  = _infer_name(files, bt)
             total = int(t.get("totalLength") or 0)
+
+            # derive destination (parent dir of first file under DOWNLOAD_ROOT)
             dest = "/"
             try:
                 if files:
@@ -381,6 +302,7 @@ def _record_history(rows):
                 pass
 
             ts = int(time.time())
+            # avoid duplicates by gid
             cur = conn.execute("SELECT 1 FROM torrent_history WHERE gid=? LIMIT 1", (gid,))
             if not cur.fetchone():
                 conn.execute(
@@ -388,7 +310,6 @@ def _record_history(rows):
                        VALUES (?,?,?,?,?,?)""",
                     (name, gid, dest, total, ts, ts)
                 )
-            _aria2_call("aria2.removeDownloadResult", [gid]) # Purge from aria2's memory
         conn.commit()
 
 def _stats_task():
@@ -397,8 +318,11 @@ def _stats_task():
         socketio.sleep(2)
 
 def _torrent_task():
+    # Emit only "in-progress" items (active + waiting/metadata).
+    # Completed items are written to history and not shown in progress.
     while True:
         try:
+            # ask aria2 for richer fields incl. bittorrent (for proper names)
             fields = ["gid","status","totalLength","completedLength","downloadSpeed","files","bittorrent"]
 
             active  = _aria2_call("aria2.tellActive",   [fields]).get("result", [])
@@ -409,35 +333,23 @@ def _torrent_task():
                 row = dict(row)
                 row["name"] = _infer_name(row.get("files") or [], row.get("bittorrent") or {})
                 total = int(row.get("totalLength") or 0)
-                row["isMetadata"] = (total == 0)
+                row["isMetadata"] = (total == 0)   # show “Fetching metadata…” in UI when true
                 return row
 
+            # progress list = active + waiting/paused (NOT including 'complete' or 'error')
             progress = [enrich(r) for r in (active + waiting) if r.get("status") in ("active","waiting","paused")]
+
+            # completed -> to history (once) and do not include in progress
             completed_rows = [enrich(r) for r in stopped if r.get("status") == "complete"]
             if completed_rows:
                 _record_history(completed_rows)
 
             socketio.emit("torrent_status", {"progress": progress})
         except Exception:
+            # don’t crash the loop on transient RPC errors
             pass
         socketio.sleep(2)
 
-def _ytdl_task():
-    while True:
-        # Emit active tasks to the UI
-        active_tasks = {k: v for k, v in YTDL_TASKS.items() if v.get('status') not in ['finished', 'error']}
-        socketio.emit("ytdl_status", {"progress": list(active_tasks.values())})
-        
-        # Clean up finished/errored tasks from memory
-        finished_ids = [task_id for task_id, data in YTDL_TASKS.items() if data.get('status') in ['finished', 'error']]
-        
-        if finished_ids:
-            socketio.sleep(5) # Give UI a moment to show 100% before it disappears
-            for task_id in finished_ids:
-                if task_id in YTDL_TASKS:
-                    del YTDL_TASKS[task_id]
-
-        socketio.sleep(2)
 
 _started = False
 @app.before_request
@@ -446,7 +358,6 @@ def _start_tasks_once():
     if not _started:
         socketio.start_background_task(_stats_task)
         socketio.start_background_task(_torrent_task)
-        socketio.start_background_task(_ytdl_task)
         _started = True
 
 # ==================== DB ====================
@@ -469,17 +380,6 @@ def _db_init():
                 gid TEXT,
                 dest TEXT NOT NULL,
                 size_bytes INTEGER,
-                added_at INTEGER NOT NULL,
-                completed_at INTEGER
-            )
-        """)
-        conn.execute("""
-            CREATE TABLE IF NOT EXISTS youtubedl_history (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                name TEXT NOT NULL,
-                url TEXT,
-                dest TEXT NOT NULL,
-                audio_only INTEGER,
                 added_at INTEGER NOT NULL,
                 completed_at INTEGER
             )
@@ -509,90 +409,6 @@ def auth_logout():
 @app.get('/auth/status')
 def auth_status():
     return jsonify({'ok': True, 'logged_in': bool(session.get('logged_in')), 'user': session.get('user')})
-
-# ==================== Daily Notes App ====================
-
-NOTES_DIR = 'daily_notes'
-KST = ZoneInfo("Asia/Seoul")
-
-def get_today_note_path(date_obj=None):
-    """Gets the file path for a given or today's note in KST."""
-    if date_obj is None:
-        date_obj = datetime.now(KST)
-    
-    today_str = date_obj.strftime('%Y-%m-%d')
-    filename = f"note_{today_str}.txt"
-    # Make sure this path is inside a mounted volume if using Docker
-    return os.path.join(NOTES_DIR, filename)
-
-@app.route('/notes')
-@auth_required_json
-def notes_app_shell():
-    """
-    Serves the main HTML shell of the notes app.
-    The app itself will be rendered by JavaScript.
-    """
-    return render_template('notes.html')
-
-@app.route('/notes/api/list')
-@auth_required_json
-def notes_list():
-    """Returns a sorted list of all available note dates."""
-    os.makedirs(NOTES_DIR, exist_ok=True)
-    
-    today_str = datetime.now(KST).strftime('%Y-%m-%d')
-    
-    note_files = glob.glob(os.path.join(NOTES_DIR, 'note_*.txt'))
-    
-    # Extract YYYY-MM-DD from 'daily_notes/note_YYYY-MM-DD.txt'
-    dates = [os.path.basename(f)[5:-4] for f in note_files]
-    
-    dates.add(today_str)
-    # Sort descending (newest first)
-    sorted_dates = sorted(list(dates), reverse=True)
-    
-    return jsonify(sorted_dates)
-
-@app.route('/notes/api/get/<string:date_str>')
-@auth_required_json
-def notes_get(date_str):
-    """Returns the content of a specific note file."""
-    try:
-        # Validate date format to prevent directory traversal
-        datetime.strptime(date_str, '%Y-%m-%d')
-        filename = f"note_{date_str}.txt"
-        note_path = os.path.join(NOTES_DIR, filename)
-        
-        if os.path.exists(note_path):
-            with open(note_path, 'r', encoding='utf-8') as f:
-                content = json.load(f)
-            return jsonify(content)
-        else:
-            # If note for that day doesn't exist, return a default empty structure
-            return jsonify([{'task': '', 'status': 'to-do'}])
-    except (ValueError, FileNotFoundError):
-        return jsonify({'error': 'Invalid date or note not found'}), 404
-
-@app.route('/notes/api/save/<string:date_str>', methods=['POST'])
-@auth_required_json
-def notes_save(date_str):
-    """Saves the content for a specific note."""
-    try:
-        datetime.strptime(date_str, '%Y-%m-%d')
-        filename = f"note_{date_str}.txt"
-        note_path = os.path.join(NOTES_DIR, filename)
-        
-        data = request.get_json()
-        if data is None:
-            return jsonify({'status': 'error', 'message': 'Invalid data'}), 400
-            
-        os.makedirs(NOTES_DIR, exist_ok=True)
-        with open(note_path, 'w', encoding='utf-8') as f:
-            json.dump(data, f, indent=2)
-            
-        return jsonify({'status': 'success', 'message': f'Note for {date_str} saved!'})
-    except ValueError:
-        return jsonify({'error': 'Invalid date format'}), 400
 
 # ==================== Admin ====================
 @app.get('/admin')
@@ -778,6 +594,7 @@ def torrents_remove():
     try:
         _aria2_call("aria2.remove", [gid])
     finally:
+        # remove from result list as well (does not delete files)
         try:
             _aria2_call("aria2.removeDownloadResult", [gid])
         except Exception:
@@ -851,54 +668,16 @@ def youtubedl_add():
     data = request.get_json(force=True, silent=True) or {}
     link = (data.get('link') or '').strip()
     dest = (data.get('dest') or '').strip()
-    audio_only = bool(data.get('audio_only'))
     if not link:
         abort(400, 'Missing link')
 
     dpath = _safe_join_download(dest)
     dpath.mkdir(parents=True, exist_ok=True)
     
-    task_id = secrets.token_hex(8)
-
-    with sqlite3.connect(DB_PATH) as conn:
-        cursor = conn.cursor()
-        cursor.execute(
-            """INSERT INTO youtubedl_history(name, url, dest, audio_only, added_at)
-               VALUES (?,?,?,?,?)""",
-            ("Fetching title...", link, dest, 1 if audio_only else 0, int(time.time()))
-        )
-        conn.commit()
-        db_id = cursor.lastrowid
-
-    thread = threading.Thread(target=run_youtubedl, args=(link, dpath, audio_only, task_id, db_id))
+    thread = threading.Thread(target=run_youtubedl, args=(link, dpath))
     thread.start()
     return jsonify({'ok': True, 'result': {'message': 'Video download started in the background.'}})
 
-@app.get('/admin/youtubedl/history')
-@auth_required_json
-def ytdl_history():
-    with sqlite3.connect(DB_PATH) as conn:
-        rows = conn.execute("""
-            SELECT id, name, url, dest, audio_only, added_at, completed_at
-            FROM youtubedl_history ORDER BY COALESCE(completed_at, added_at) DESC LIMIT 500
-        """).fetchall()
-    out = []
-    for r in rows:
-        out.append({'id': r[0], 'name': r[1], 'url': r[2], 'dest': r[3],
-                    'audio_only': bool(r[4]), 'added_at': r[5], 'completed_at': r[6]})
-    return jsonify({'ok': True, 'history': out})
-
-@app.post('/admin/youtubedl/history/delete')
-@auth_required_json
-def ytdl_history_delete():
-    data = request.get_json(force=True, silent=True) or {}
-    hid = data.get('id')
-    if hid is None:
-        abort(400, 'Missing history id')
-    with sqlite3.connect(DB_PATH) as conn:
-        conn.execute("DELETE FROM youtubedl_history WHERE id=?", (hid,))
-        conn.commit()
-    return jsonify({'ok': True})
 
 # ==================== Public share endpoints (no auth) ====================
 @app.post('/api/share')
@@ -934,8 +713,10 @@ def shared_entry(token):
         abort(404)
 
     if not is_dir:
+        # single-file share -> download
         return send_file(target, as_attachment=True, download_name=target.name)
 
+    # folder share: allow browsing and downloading child files within the folder
     child = request.args.get('p', '').strip()
     current = (target / child) if child else target
     current = current.resolve()
@@ -964,6 +745,80 @@ def shared_entry(token):
     html.append('</ul>')
     return "\n".join(html)
 
+# ==================== Multi-Note App (Upgraded & Fixed) ====================
+NOTES_DIR = '/data/daily_notes'
+KST = ZoneInfo("Asia/Seoul") 
+
+@app.route('/notes')
+@auth_required_page
+def notes_app_shell():
+    """
+    Serves the main HTML shell of the notes app.
+    The app itself will be rendered by JavaScript.
+    """
+    return render_template('notes.html')
+
+@app.route('/notes/api/list')
+@auth_required_json
+def notes_list():
+    """Returns a sorted list of all available note dates."""
+    os.makedirs(NOTES_DIR, exist_ok=True)
+    
+    # Also add today's KST date to the list if it doesn't exist yet
+    today_str = datetime.now(KST).strftime('%Y-%m-%d')
+    
+    note_files = glob.glob(os.path.join(NOTES_DIR, 'note_*.txt'))
+    
+    # Extract YYYY-MM-DD from 'daily_notes/note_YYYY-MM-DD.txt'
+    dates = {os.path.basename(f)[5:-4] for f in note_files}
+    dates.add(today_str) # Use a set to automatically handle duplicates
+    
+    sorted_dates = sorted(list(dates), reverse=True)
+    
+    return jsonify(sorted_dates)
+
+@app.route('/notes/api/get/<string:date_str>')
+@auth_required_json
+def notes_get(date_str):
+    """Returns the content of a specific note file."""
+    try:
+        # Validate date format to prevent directory traversal
+        datetime.strptime(date_str, '%Y-%m-%d')
+        filename = f"note_{date_str}.txt"
+        note_path = os.path.join(NOTES_DIR, filename)
+        
+        if os.path.exists(note_path):
+            with open(note_path, 'r', encoding='utf-8') as f:
+                content = json.load(f)
+            return jsonify(content)
+        else:
+            # If note for that day doesn't exist, return a default empty structure
+            return jsonify([{'task': '', 'status': 'to-do'}])
+    except (ValueError, FileNotFoundError, json.JSONDecodeError):
+        # Return default structure on any error (e.g., empty file)
+        return jsonify([{'task': '', 'status': 'to-do'}])
+
+@app.route('/notes/api/save/<string:date_str>', methods=['POST'])
+@auth_required_json
+def notes_save_api(date_str): # Renamed to avoid conflict with function `save`
+    """Saves the content for a specific note."""
+    try:
+        datetime.strptime(date_str, '%Y-%m-%d')
+        filename = f"note_{date_str}.txt"
+        note_path = os.path.join(NOTES_DIR, filename)
+        
+        data = request.get_json()
+        if data is None:
+            return jsonify({'status': 'error', 'message': 'Invalid data'}), 400
+            
+        os.makedirs(NOTES_DIR, exist_ok=True)
+        with open(note_path, 'w', encoding='utf-8') as f:
+            json.dump(data, f, indent=2)
+            
+        return jsonify({'status': 'success', 'message': f'Note for {date_str} saved!'})
+    except ValueError:
+        return jsonify({'error': 'Invalid date format'}), 400
+
 # ==================== JSON error formatting ====================
 @app.errorhandler(400)
 @app.errorhandler(403)
@@ -978,3 +833,4 @@ def json_errors(err):
 # ==================== Main ====================
 if __name__ == '__main__':
     socketio.run(app, host='0.0.0.0', port=5000, debug=True)
+

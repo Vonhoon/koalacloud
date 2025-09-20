@@ -28,9 +28,9 @@ services:
       - /mnt/drive:/mnt/drive
       - /mnt/sdcard:/mnt/sdcard
       - /mnt/drive/Video:/mnt/drive/Video
-      - /opt/koala-cloud:/data
+      - ~/koala-cloud:/data
       - /etc/passwd:/etc/passwd:ro
       - /etc/shadow:/etc/shadow:ro
       - /etc/group:/etc/group:ro
       - /etc/pam.d/:/etc/pam.d/:ro
-      - /opt/koala-notes:/daily_notes 
+      - ~/koala-cloud/daily_notes:/daily_notes 
