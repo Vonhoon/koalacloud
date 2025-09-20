@@ -260,6 +260,60 @@
         }
         triggerAutoSave();
     });
+    // --- Arrow key navigation between rows ---
+    // Moves focus up/down between textareas.
+    // Special: If you're on the last non-empty row and press ArrowDown, it creates exactly one new empty row below (no spam).
+    document.getElementById('notes-table').addEventListener('keydown', (e) => {
+    const isTextarea = e.target && e.target.tagName && e.target.tagName.toLowerCase() === 'textarea';
+    if (!isTextarea) return;
+
+    const curr = e.target;
+    const textareas = Array.from(document.querySelectorAll('#notes-tbody textarea'));
+    const idx = textareas.indexOf(curr);
+    if (idx === -1) return;
+
+    const atStart = curr.selectionStart === 0 && curr.selectionEnd === 0;
+    const atEnd = curr.selectionStart === curr.value.length && curr.selectionEnd === curr.value.length;
+
+    // Helper: create one new row and focus its textarea
+    const createRowBelow = () => {
+        const newRow = appendTableRow({ task: '', status: 'to-do' });
+        const ta = newRow.querySelector('textarea');
+        autoResizeTextarea(ta);
+        ta.focus();
+        triggerAutoSave();
+    };
+
+    if (e.key === 'ArrowUp') {
+        // Only move up if the caret is at the very start; otherwise let the textarea handle line navigation
+        if (!atStart) return;
+        if (idx > 0) {
+        e.preventDefault();
+        textareas[idx - 1].focus();
+        // Place caret at end of previous textarea for convenience
+        const prev = textareas[idx - 1];
+        prev.selectionStart = prev.selectionEnd = prev.value.length;
+        }
+    } else if (e.key === 'ArrowDown') {
+        // Only move down if caret is at the very end; otherwise let the textarea handle line navigation
+        if (!atEnd) return;
+        if (idx < textareas.length - 1) {
+        e.preventDefault();
+        textareas[idx + 1].focus();
+        // Place caret at start of next textarea for convenience
+        const next = textareas[idx + 1];
+        next.selectionStart = next.selectionEnd = 0;
+        } else {
+        // We're on the last textarea
+        // Create ONE new row only if current last has some text and the last row is still us
+        if (curr.value.trim() !== '') {
+            e.preventDefault();
+            createRowBelow();
+        }
+        // If it's empty, do nothing (no endless creation)
+        }
+    }
+    });
 
     // Initial Load
     (async function init() {
