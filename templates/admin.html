@@ -97,17 +97,13 @@
 
         <h3 class="text-lg font-semibold mt-6 mb-3">Active Torrents</h3>
         <div id="tx-progress" class="max-h-64 overflow-auto space-y-2 text-sm pr-2"></div>
-
-        <h3 class="text-lg font-semibold mt-6 mb-3">Active YouTube Downloads</h3>
-        <div id="ytdl-progress" class="max-h-64 overflow-auto space-y-2 text-sm pr-2"></div>
-
         <details class="mt-6 group">
           <summary class="list-none cursor-pointer text-lg font-semibold flex items-center gap-2">
             History
             <svg class="w-4 h-4 transition-transform group-open:rotate-90" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" /></svg>
           </summary>
           <div id="tx-history" class="mt-3 space-y-2 text-sm"></div>
-          <div id="ytdl-history" class="mt-3 space-y-2 text-sm"></div>
+         
         </details>
       </div>
     </div>
@@ -310,37 +306,6 @@ function renderTorrents(data){
   });
 }
 
-function renderYoutubeDL(data) {
-    const list = data.progress || [];
-    const el = document.getElementById('ytdl-progress');
-    el.innerHTML = '';
-    if (list.length === 0) {
-        el.innerHTML = `<div class="text-gray-400 text-center py-4">No active YouTube downloads.</div>`;
-        return;
-    }
-
-    list.forEach(t => {
-        const name = t.name || '(Starting...)';
-        const pct = t.progress || '0%';
-        const spd = t.speed || '';
-
-        const row = document.createElement('div');
-        row.className = 'p-3 rounded-lg border border-gray-200 bg-gray-50/50';
-        row.innerHTML = `
-            <div class="truncate pr-2 font-medium">${name}</div>
-            <div class="mt-2 flex items-center gap-3">
-                <div class="flex-1 bg-gray-200 rounded-full h-2 overflow-hidden">
-                    <div class="bg-blue-500 h-2" style="width:${pct}"></div>
-                </div>
-                <div class="text-xs font-mono w-12 text-right">${pct}</div>
-                <div class="text-xs font-mono w-20 text-right">${spd}</div>
-            </div>
-        `;
-        el.appendChild(row);
-    });
-}
-
-
 async function loadHistory(){
   try{
     const h=await api('/admin/torrents/history');
@@ -407,7 +372,6 @@ async function loadHistory(){
 function initSockets(){
   const sock=io();
   sock.on('torrent_status',(d)=>{ renderTorrents(d); });
-  sock.on('ytdl_status',(d)=>{ renderYoutubeDL(d); });
 }
 
 async function startDownload(){
