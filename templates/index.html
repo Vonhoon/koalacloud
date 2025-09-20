@@ -421,42 +421,144 @@ listEl.addEventListener('contextmenu', (e)=>{
   openCtx(h.item.path, e.pageX, e.pageY, h.item.type);
 });
 
-/* ===== Touch: tap=select, second tap=open; long-press=context ===== */
+/* ===== Touch interactions: tap=open, drag=select, long-press=context ===== */
 let lpTimer = null, lpFired = false;
-let lastTapPath = null, lastTapTime = 0;
-const TAP_OPEN_WINDOW = 600; // ms: second tap within this opens
+let dragSelecting = false;
+let lastTouchedPath = null;
+let touchStartX = 0, touchStartY = 0;
+let touchMoved = false;
+let suppressNextClick = false;
+let pendingTouchSelectionToggle = false;
+let touchSelectionModifier = false;
+const DRAG_THRESHOLD = 12; // px movement before a drag-select begins
+
+function clearLongPressTimer(){
+  if (lpTimer) { clearTimeout(lpTimer); lpTimer = null; }
+}
 
 if (isTouch) {
-  // Tap: select; if same item tapped again quickly, open it
   listEl.addEventListener('click', (e)=>{
-    if (lpFired) { lpFired = false; return; }
-    const h = itemFromEvent(e); if(!h) return; e.preventDefault();
-
-    const now = Date.now();
-    if (lastTapPath === h.item.path && (now - lastTapTime) <= TAP_OPEN_WINDOW) {
-      // second tap on same item → open
-      if(h.item.type==='dir') load(h.item.path); else openPreview(h.item.path);
-      lastTapPath = null; lastTapTime = 0;
+    if (e.target.closest('[data-menu]')) return;
+    if (suppressNextClick) {
+      suppressNextClick = false;
+      lpFired = false;
+      pendingTouchSelectionToggle = false;
       return;
     }
-    // first tap → select only
-    selected.clear(); selected.add(h.item.path); updateSelUI(); renderList();
-    lastTapPath = h.item.path; lastTapTime = now;
+    if (lpFired) { lpFired = false; return; }
+
+    const h = itemFromEvent(e); if(!h) return;
+
+    const modifierActive = pendingTouchSelectionToggle || e.ctrlKey || e.metaKey || e.shiftKey || e.altKey;
+    pendingTouchSelectionToggle = false;
+
+    if (modifierActive) {
+      selectToggle(h.item.path);
+      lastAnchorIndex = h.idx;
+      updateSelUI();
+      renderList();
+      return;
+    }
+
+    selected.clear();
+    selected.add(h.item.path);
+    lastAnchorIndex = h.idx;
+    updateSelUI();
+    renderList();
+    if (h.item.type === 'dir') load(h.item.path); else openPreview(h.item.path);
   }, true);
 
-  // Long-press opens context and keeps selection
   listEl.addEventListener('touchstart', (e)=>{
+    if (e.target.closest('[data-menu]')) return;
     const h = itemFromEvent(e); if(!h) return;
-    const t = e.touches[0]; const x = t.clientX + window.scrollX, y = t.clientY + window.scrollY;
+    const t = e.touches[0]; if(!t) return;
+
+    lastTouchedPath = h.item.path;
+    touchStartX = t.clientX;
+    touchStartY = t.clientY;
+    dragSelecting = false;
+    touchMoved = false;
+    suppressNextClick = false;
+    touchSelectionModifier = (e.touches.length > 1) || e.ctrlKey || e.metaKey || e.shiftKey || e.altKey;
+    pendingTouchSelectionToggle = touchSelectionModifier;
+
+    clearLongPressTimer();
+    const x = t.clientX + window.scrollX;
+    const y = t.clientY + window.scrollY;
     lpTimer = setTimeout(()=>{
+      lpTimer = null;
       lpFired = true;
-      if(!selected.has(h.item.path)) { selected.clear(); selected.add(h.item.path); updateSelUI(); renderList(); }
+      suppressNextClick = true;
+      pendingTouchSelectionToggle = false;
+      if(!selected.has(h.item.path)) {
+        selected.clear();
+        selected.add(h.item.path);
+        lastAnchorIndex = h.idx;
+        updateSelUI();
+        renderList();
+      }
       openCtx(h.item.path, x, y, h.item.type);
     }, 500);
   }, {passive:true});
 
-  ['touchend','touchcancel','touchmove'].forEach(evt=>{
-    listEl.addEventListener(evt, ()=>{ if (lpTimer) { clearTimeout(lpTimer); lpTimer = null; } }, {passive:true});
+  listEl.addEventListener('touchmove', (e)=>{
+    if (!lastTouchedPath) return;
+    const t = e.touches[0]; if(!t) return;
+
+    const dx = t.clientX - touchStartX;
+    const dy = t.clientY - touchStartY;
+    if (!touchMoved && Math.sqrt(dx*dx + dy*dy) > DRAG_THRESHOLD) {
+      touchMoved = true;
+    }
+
+    if (!touchMoved) return;
+
+    clearLongPressTimer();
+    if (lpFired) lpFired = false;
+
+    const selectionIntent = touchSelectionModifier || dragSelecting || selected.size > 0;
+    if (!selectionIntent) return;
+
+    if (!dragSelecting) {
+      dragSelecting = true;
+      suppressNextClick = true;
+      pendingTouchSelectionToggle = false;
+      if (!touchSelectionModifier && selected.size === 0) {
+        selected.clear();
+      }
+      selected.add(lastTouchedPath);
+      updateSelUI();
+    }
+
+    const hit = document.elementFromPoint(t.clientX, t.clientY);
+    const el = hit?.closest('[data-path]');
+    if (el) {
+      const path = el.getAttribute('data-path');
+      if (path && !selected.has(path)) {
+        selected.add(path);
+        el.classList.add('selected');
+        updateSelUI();
+      }
+    }
+
+    e.preventDefault();
+  }, {passive:false});
+
+  const finishTouch = ()=>{
+    clearLongPressTimer();
+    if (dragSelecting) {
+      updateSelUI();
+      renderList();
+    }
+    if (touchMoved) suppressNextClick = true;
+    dragSelecting = false;
+    lastTouchedPath = null;
+    touchSelectionModifier = false;
+    touchMoved = false;
+  };
+
+  ['touchend','touchcancel'].forEach(evt=>{
+    listEl.addEventListener(evt, finishTouch, {passive:true});
   });
 }
 
