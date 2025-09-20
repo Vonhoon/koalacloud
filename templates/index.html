@@ -366,6 +366,7 @@ function openCtx(path, x, y, type){
     <a onclick="openItem()">Open / Preview</a>
     <a ${hasDir ? 'class="disabled" aria-disabled="true"' : ''} onclick="downloadSelectedSequential()">Download</a>
     <a onclick="shareItem()">Share…</a>
+    <a onclick="renameItem()">Rename…</a>
     <a onclick="propsItem()">Properties</a>
     <hr style="border:none;border-top:1px solid var(--border)">
     <a onclick="mkdirHere()">New Folder</a>
@@ -607,6 +608,53 @@ async function mkdirHere(){
   const name=prompt('Folder name:'); if(!name) return;
   await api('/api/mkdir',{method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({parent: currentPath, name})});
   load(currentPath);
+}
+async function renameItem(){
+  const paths = currentSelectionArray();
+  if(paths.length !== 1){
+    alert('Select exactly one item to rename.');
+    return;
+  }
+
+  ctx.style.display='none';
+
+  const src = paths[0];
+  const trimmedSrc = src.replace(/\/+$/, '') || '/';
+  if(trimmedSrc === '/'){
+    alert('Cannot rename this item.');
+    return;
+  }
+
+  const lastSlash = trimmedSrc.lastIndexOf('/');
+  const parent = lastSlash <= 0 ? '/' : trimmedSrc.slice(0, lastSlash);
+  const currentName = trimmedSrc.slice(lastSlash + 1);
+
+  const input = prompt('New name:', currentName);
+  if(input === null) return;
+  const newName = input.trim();
+
+  if(!newName){
+    alert('Name cannot be empty.');
+    return;
+  }
+  if(newName.includes('/')){
+    alert('Name cannot contain "/" characters.');
+    return;
+  }
+  if(newName === currentName) return;
+
+  const dst = (parent === '/' ? '' : parent) + '/' + newName;
+
+  try{
+    await api('/api/move',{method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({src, dst})});
+    selected.clear();
+    updateSelUI();
+    lastAnchorIndex = null;
+    ctxTarget = null;
+    load(currentPath);
+  }catch(ex){
+    alert('Rename failed: ' + ex.message);
+  }
 }
 async function deleteItem(){
   const paths = currentSelectionArray(); if(paths.length===0) return;
