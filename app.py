@@ -227,32 +227,6 @@ def normalize_filename_hook(d):
                 pass
 def run_youtubedl(url, dest_path, audio_only, task_id, db_id):
     
-    # This nested function creates a custom hook for each download.
-    # It "closes over" the task_id, ensuring the correct task is updated.
-    def ytdl_progress_hook(d):
-        if task_id not in YTDL_TASKS: return
-
-        # When the whole playlist is done, yt-dlp sends a final 'finished' status
-        if d['status'] == 'finished':
-            # Update final status for UI
-            YTDL_TASKS[task_id]['status'] = 'finished'
-            YTDL_TASKS[task_id]['progress'] = '100%'
-
-            # Update the database record with completion time
-            with sqlite3.connect(DB_PATH) as conn:
-                conn.execute(
-                    "UPDATE youtubedl_history SET completed_at=? WHERE id=?",
-                    (int(time.time()), db_id)
-                )
-                conn.commit()
-        
-        # While downloading individual videos, update progress
-        if d['status'] == 'downloading':
-            YTDL_TASKS[task_id]['status'] = 'downloading'
-            YTDL_TASKS[task_id]['progress'] = d.get('_percent_str', '0%').strip()
-            YTDL_TASKS[task_id]['speed'] = d.get('_speed_str', '').strip()
-
-
     playlist_id = get_playlist_id(url)
     download_url = f'https://www.youtube.com/playlist?list={playlist_id}' if playlist_id else url
     
@@ -261,9 +235,9 @@ def run_youtubedl(url, dest_path, audio_only, task_id, db_id):
     ydl_opts = {
         'outtmpl': output_template,
         'noplaylist': playlist_id is None,
-        'progress_hooks': [ytdl_progress_hook], # Use the custom hook
         'postprocessor_hooks': [normalize_filename_hook],
         'ignoreerrors': True,
+        # No progress hook for now to ensure stability
     }
 
     if audio_only:
@@ -271,25 +245,31 @@ def run_youtubedl(url, dest_path, audio_only, task_id, db_id):
         ydl_opts['postprocessors'] = [{'key': 'FFmpegExtractAudio', 'preferredcodec': 'mp3', 'preferredquality': '192'}]
 
     try:
-        # First, extract info without downloading to get the title
+        # Get title first for the database
         with yt_dlp.YoutubeDL({'quiet': True, 'extract_flat': True}) as ydl:
             info = ydl.extract_info(download_url, download=False)
             title = info.get('title', 'YouTube Content')
-            # Update the task with the real title
-            YTDL_TASKS[task_id] = {'name': title, 'status': 'starting', 'progress': '0%', 'speed': '', 'db_id': db_id, 'id': task_id}
-            # Also update the database with the real title
             with sqlite3.connect(DB_PATH) as conn:
                 conn.execute("UPDATE youtubedl_history SET name=? WHERE id=?", (title, db_id))
                 conn.commit()
 
-        # Now, perform the actual download with progress hooks
+        # Perform download
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             ydl.download([download_url])
+        
+        # Mark as complete in the database
+        with sqlite3.connect(DB_PATH) as conn:
+            conn.execute("UPDATE youtubedl_history SET completed_at=? WHERE id=?", (int(time.time()), db_id))
+            conn.commit()
+        
+        # Mark as finished for the UI task list
+        if task_id in YTDL_TASKS:
+            YTDL_TASKS[task_id]['status'] = 'finished'
 
-    except Exception:
+    except Exception as e:
+        print(f"YTDL Error for task {task_id}: {e}")
         if task_id in YTDL_TASKS:
             YTDL_TASKS[task_id]['status'] = 'error'
-
 
 
 def get_playlist_id(url):
@@ -304,6 +284,7 @@ def get_playlist_id(url):
     return None
 
 def run_youtubedl(url, dest_path, audio_only, task_id, db_id):
+    
     playlist_id = get_playlist_id(url)
     download_url = f'https://www.youtube.com/playlist?list={playlist_id}' if playlist_id else url
     
@@ -312,9 +293,9 @@ def run_youtubedl(url, dest_path, audio_only, task_id, db_id):
     ydl_opts = {
         'outtmpl': output_template,
         'noplaylist': playlist_id is None,
-        'progress_hooks': [ytdl_progress_hook],
         'postprocessor_hooks': [normalize_filename_hook],
         'ignoreerrors': True,
+        # No progress hook for now to ensure stability
     }
 
     if audio_only:
@@ -322,12 +303,29 @@ def run_youtubedl(url, dest_path, audio_only, task_id, db_id):
         ydl_opts['postprocessors'] = [{'key': 'FFmpegExtractAudio', 'preferredcodec': 'mp3', 'preferredquality': '192'}]
 
     try:
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+        # Get title first for the database
+        with yt_dlp.YoutubeDL({'quiet': True, 'extract_flat': True}) as ydl:
             info = ydl.extract_info(download_url, download=False)
-            title = info.get('title', 'YouTube Video')
-            YTDL_TASKS[task_id] = {'name': title, 'status': 'starting', 'progress': '0%', 'speed': '', 'db_id': db_id, 'id': task_id}
+            title = info.get('title', 'YouTube Content')
+            with sqlite3.connect(DB_PATH) as conn:
+                conn.execute("UPDATE youtubedl_history SET name=? WHERE id=?", (title, db_id))
+                conn.commit()
+
+        # Perform download
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             ydl.download([download_url])
-    except Exception:
+        
+        # Mark as complete in the database
+        with sqlite3.connect(DB_PATH) as conn:
+            conn.execute("UPDATE youtubedl_history SET completed_at=? WHERE id=?", (int(time.time()), db_id))
+            conn.commit()
+        
+        # Mark as finished for the UI task list
+        if task_id in YTDL_TASKS:
+            YTDL_TASKS[task_id]['status'] = 'finished'
+
+    except Exception as e:
+        print(f"YTDL Error for task {task_id}: {e}")
         if task_id in YTDL_TASKS:
             YTDL_TASKS[task_id]['status'] = 'error'
 
@@ -386,6 +384,7 @@ def _record_history(rows):
                        VALUES (?,?,?,?,?,?)""",
                     (name, gid, dest, total, ts, ts)
                 )
+            _aria2_call("aria2.removeDownloadResult", [gid]) # Purge from aria2's memory
         conn.commit()
 
 def _stats_task():
