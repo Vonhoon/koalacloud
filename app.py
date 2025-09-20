@@ -12,6 +12,7 @@ from functools import wraps
 import threading
 from urllib.parse import urlparse, parse_qs
 import unicodedata
+from zoneinfo import ZoneInfo 
 
 from flask import Flask, render_template, request, jsonify, send_file, abort, session, redirect
 from flask_socketio import SocketIO
@@ -20,6 +21,9 @@ import psutil
 from werkzeug.utils import secure_filename
 from werkzeug.middleware.proxy_fix import ProxyFix
 import yt_dlp
+
+from datetime import datetime
+import glob
 
 # ==================== Config ====================
 APP_NAME = os.getenv('APP_NAME', 'Koala Cloud')
@@ -505,6 +509,90 @@ def auth_logout():
 @app.get('/auth/status')
 def auth_status():
     return jsonify({'ok': True, 'logged_in': bool(session.get('logged_in')), 'user': session.get('user')})
+
+# ==================== Daily Notes App ====================
+
+NOTES_DIR = 'daily_notes'
+KST = ZoneInfo("Asia/Seoul")
+
+def get_today_note_path(date_obj=None):
+    """Gets the file path for a given or today's note in KST."""
+    if date_obj is None:
+        date_obj = datetime.now(KST)
+    
+    today_str = date_obj.strftime('%Y-%m-%d')
+    filename = f"note_{today_str}.txt"
+    # Make sure this path is inside a mounted volume if using Docker
+    return os.path.join(NOTES_DIR, filename)
+
+@app.route('/notes')
+@auth_required_json
+def notes_app_shell():
+    """
+    Serves the main HTML shell of the notes app.
+    The app itself will be rendered by JavaScript.
+    """
+    return render_template('notes.html')
+
+@app.route('/notes/api/list')
+@auth_required_json
+def notes_list():
+    """Returns a sorted list of all available note dates."""
+    os.makedirs(NOTES_DIR, exist_ok=True)
+    
+    today_str = datetime.now(KST).strftime('%Y-%m-%d')
+    
+    note_files = glob.glob(os.path.join(NOTES_DIR, 'note_*.txt'))
+    
+    # Extract YYYY-MM-DD from 'daily_notes/note_YYYY-MM-DD.txt'
+    dates = [os.path.basename(f)[5:-4] for f in note_files]
+    
+    dates.add(today_str)
+    # Sort descending (newest first)
+    sorted_dates = sorted(list(dates), reverse=True)
+    
+    return jsonify(sorted_dates)
+
+@app.route('/notes/api/get/<string:date_str>')
+@auth_required_json
+def notes_get(date_str):
+    """Returns the content of a specific note file."""
+    try:
+        # Validate date format to prevent directory traversal
+        datetime.strptime(date_str, '%Y-%m-%d')
+        filename = f"note_{date_str}.txt"
+        note_path = os.path.join(NOTES_DIR, filename)
+        
+        if os.path.exists(note_path):
+            with open(note_path, 'r', encoding='utf-8') as f:
+                content = json.load(f)
+            return jsonify(content)
+        else:
+            # If note for that day doesn't exist, return a default empty structure
+            return jsonify([{'task': '', 'status': 'to-do'}])
+    except (ValueError, FileNotFoundError):
+        return jsonify({'error': 'Invalid date or note not found'}), 404
+
+@app.route('/notes/api/save/<string:date_str>', methods=['POST'])
+@auth_required_json
+def notes_save(date_str):
+    """Saves the content for a specific note."""
+    try:
+        datetime.strptime(date_str, '%Y-%m-%d')
+        filename = f"note_{date_str}.txt"
+        note_path = os.path.join(NOTES_DIR, filename)
+        
+        data = request.get_json()
+        if data is None:
+            return jsonify({'status': 'error', 'message': 'Invalid data'}), 400
+            
+        os.makedirs(NOTES_DIR, exist_ok=True)
+        with open(note_path, 'w', encoding='utf-8') as f:
+            json.dump(data, f, indent=2)
+            
+        return jsonify({'status': 'success', 'message': f'Note for {date_str} saved!'})
+    except ValueError:
+        return jsonify({'error': 'Invalid date format'}), 400
 
 # ==================== Admin ====================
 @app.get('/admin')
