@@ -225,24 +225,71 @@ def normalize_filename_hook(d):
                 os.rename(filepath, os.path.join(directory, normalized_filename))
             except OSError:
                 pass
-
-def ytdl_progress_hook(d):
-    task_id = d.get('info_dict', {}).get('id')
-    if not task_id or task_id not in YTDL_TASKS:
-        return
+def run_youtubedl(url, dest_path, audio_only, task_id, db_id):
     
-    YTDL_TASKS[task_id]['status'] = d['status']
-    if d['status'] == 'downloading':
-        YTDL_TASKS[task_id]['progress'] = d.get('_percent_str', '0%').strip()
-        YTDL_TASKS[task_id]['speed'] = d.get('_speed_str', '').strip()
-    elif d['status'] == 'finished':
-        YTDL_TASKS[task_id]['progress'] = '100%'
-        with sqlite3.connect(DB_PATH) as conn:
-            conn.execute(
-                "UPDATE youtubedl_history SET completed_at=? WHERE id=?",
-                (int(time.time()), YTDL_TASKS[task_id]['db_id'])
-            )
-            conn.commit()
+    # This nested function creates a custom hook for each download.
+    # It "closes over" the task_id, ensuring the correct task is updated.
+    def ytdl_progress_hook(d):
+        if task_id not in YTDL_TASKS: return
+
+        # When the whole playlist is done, yt-dlp sends a final 'finished' status
+        if d['status'] == 'finished':
+            # Update final status for UI
+            YTDL_TASKS[task_id]['status'] = 'finished'
+            YTDL_TASKS[task_id]['progress'] = '100%'
+
+            # Update the database record with completion time
+            with sqlite3.connect(DB_PATH) as conn:
+                conn.execute(
+                    "UPDATE youtubedl_history SET completed_at=? WHERE id=?",
+                    (int(time.time()), db_id)
+                )
+                conn.commit()
+        
+        # While downloading individual videos, update progress
+        if d['status'] == 'downloading':
+            YTDL_TASKS[task_id]['status'] = 'downloading'
+            YTDL_TASKS[task_id]['progress'] = d.get('_percent_str', '0%').strip()
+            YTDL_TASKS[task_id]['speed'] = d.get('_speed_str', '').strip()
+
+
+    playlist_id = get_playlist_id(url)
+    download_url = f'https://www.youtube.com/playlist?list={playlist_id}' if playlist_id else url
+    
+    output_template = str(dest_path / ('%(playlist_title)s/%(playlist_index)s - %(title)s.%(ext)s' if playlist_id else '%(title)s.%(ext)s'))
+
+    ydl_opts = {
+        'outtmpl': output_template,
+        'noplaylist': playlist_id is None,
+        'progress_hooks': [ytdl_progress_hook], # Use the custom hook
+        'postprocessor_hooks': [normalize_filename_hook],
+        'ignoreerrors': True,
+    }
+
+    if audio_only:
+        ydl_opts['format'] = 'bestaudio/best'
+        ydl_opts['postprocessors'] = [{'key': 'FFmpegExtractAudio', 'preferredcodec': 'mp3', 'preferredquality': '192'}]
+
+    try:
+        # First, extract info without downloading to get the title
+        with yt_dlp.YoutubeDL({'quiet': True, 'extract_flat': True}) as ydl:
+            info = ydl.extract_info(download_url, download=False)
+            title = info.get('title', 'YouTube Content')
+            # Update the task with the real title
+            YTDL_TASKS[task_id] = {'name': title, 'status': 'starting', 'progress': '0%', 'speed': '', 'db_id': db_id, 'id': task_id}
+            # Also update the database with the real title
+            with sqlite3.connect(DB_PATH) as conn:
+                conn.execute("UPDATE youtubedl_history SET name=? WHERE id=?", (title, db_id))
+                conn.commit()
+
+        # Now, perform the actual download with progress hooks
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            ydl.download([download_url])
+
+    except Exception:
+        if task_id in YTDL_TASKS:
+            YTDL_TASKS[task_id]['status'] = 'error'
+
 
 
 def get_playlist_id(url):
@@ -374,13 +421,16 @@ def _torrent_task():
 
 def _ytdl_task():
     while True:
+        # Emit active tasks to the UI
         active_tasks = {k: v for k, v in YTDL_TASKS.items() if v.get('status') not in ['finished', 'error']}
         socketio.emit("ytdl_status", {"progress": list(active_tasks.values())})
         
-        # Clean up old tasks
-        for task_id, task_data in list(YTDL_TASKS.items()):
-            if task_data.get('status') in ['finished', 'error']:
-                time.sleep(5) # give frontend time to update
+        # Clean up finished/errored tasks from memory
+        finished_ids = [task_id for task_id, data in YTDL_TASKS.items() if data.get('status') in ['finished', 'error']]
+        
+        if finished_ids:
+            socketio.sleep(5) # Give UI a moment to show 100% before it disappears
+            for task_id in finished_ids:
                 if task_id in YTDL_TASKS:
                     del YTDL_TASKS[task_id]
 
