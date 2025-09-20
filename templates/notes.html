@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Koala Notes</title>
+    <style>
+        @font-face {
+            font-family: 'NeoDunggeunmo';
+            src: url("{{ url_for('static', filename='neodgm.woff2') }}") format('woff2');
+            font-weight: normal;
+            font-style: normal;
+        }
+
+        :root { --bg: #f9f9f9; --sidebar-bg: #f2f2f2; --border: #e0e0e0; --text: #333; --accent: #007aff; --hover: #e9e9e9; }
+        
+        body { 
+            font-family: 'NeoDunggeunmo', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; 
+            margin: 0; 
+            background-color: var(--bg); 
+            color: var(--text); 
+            display: flex; 
+            height: 100vh; 
+            overflow: hidden;
+        }
+        .sidebar { 
+            width: 280px; 
+            background-color: var(--sidebar-bg); 
+            border-right: 1px solid var(--border); 
+            overflow-y: auto; 
+            padding-top: 1rem; 
+            flex-shrink: 0;
+            transition: transform 0.3s ease-in-out;
+            z-index: 100;
+        }
+        .sidebar h1 { font-size: 1.2rem; padding: 0 1.5rem; color: var(--text); }
+        .date-list { list-style-type: none; padding: 0; margin: 1rem 0; }
+        .date-list li { padding: 0.75rem 1.5rem; cursor: pointer; transition: background-color 0.2s; border-bottom: 1px solid var(--border);}
+        .date-list li:hover { background-color: var(--hover); }
+        .date-list li.active { background-color: var(--accent); color: white; }
+        .main-content { flex-grow: 1; display: flex; flex-direction: column; }
+        .note-view { flex-grow: 1; padding: 2rem 3rem; overflow-y: auto; }
+        .note-header { margin-bottom: 1.5rem; display: flex; align-items: center; gap: 1rem; }
+        .note-header h2 { margin: 0; font-weight: 500; }
+        #save-status { font-size: 0.8rem; color: #888; transition: opacity 0.5s; height: 1rem; margin-top: 4px;}
+        
+        .hamburger {
+            display: none;
+            cursor: pointer;
+            padding: 8px;
+        }
+        .hamburger div { width: 25px; height: 3px; background-color: var(--text); margin: 5px 0; transition: 0.3s; }
+
+        .overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.4);
+            z-index: 99;
+        }
+        
+        table { width: 100%; border-collapse: collapse; }
+        td { padding: 8px 4px; vertical-align: top; }
+        textarea {
+            width: 98%; border: none; padding: 8px 4px; font-size: 1rem; background: transparent;
+            border-bottom: 1px solid #eee; font-family: inherit; resize: none; overflow-y: hidden; line-height: 1.4;
+        }
+        textarea:focus { outline: none; border-bottom: 1px solid var(--accent); }
+        select { width: 100%; border: 1px solid var(--border); border-radius: 4px; padding: 6px; font-size: 0.9rem; background: var(--bg); font-family: inherit; }
+        button#btn-add { background-color: transparent; color: var(--accent); border: 1px solid var(--accent); border-radius: 50%; width: 32px; height: 32px; font-size: 1.5rem; cursor: pointer; line-height: 28px; margin-top: 1rem; }
+        
+        @media (max-width: 768px) {
+            .sidebar {
+                position: fixed;
+                height: 100%;
+                transform: translateX(-100%);
+                box-shadow: 2px 0 10px rgba(0,0,0,0.1);
+            }
+            .sidebar.show {
+                transform: translateX(0);
+            }
+            .hamburger {
+                display: block;
+            }
+            .overlay.show {
+                display: block;
+            }
+            .note-view {
+                padding: 1.5rem;
+            }
+        }
+    </style>
+</head>
+<body>
+
+<div id="sidebar" class="sidebar">
+    <h1>My Notes</h1>
+    <ul id="date-list" class="date-list"></ul>
+</div>
+
+<div class="main-content">
+    <div class="note-view">
+        <div class="note-header">
+            <div id="hamburger" class="hamburger">
+                <div></div>
+                <div></div>
+                <div></div>
+            </div>
+            <div>
+                <h2 id="note-date-header"></h2>
+                <p id="save-status"></p>
+            </div>
+        </div>
+        <table id="notes-table">
+            <tbody id="notes-tbody"></tbody>
+        </table>
+        <button id="btn-add">＋</button>
+    </div>
+</div>
+
+<div id="overlay" class="overlay"></div>
+
+<script>
+    const sidebarEl = document.getElementById('sidebar');
+    const dateListEl = document.getElementById('date-list');
+    const noteDateHeaderEl = document.getElementById('note-date-header');
+    const tbodyEl = document.getElementById('notes-tbody');
+    const btnAdd = document.getElementById('btn-add');
+    const saveStatusEl = document.getElementById('save-status');
+    const hamburgerEl = document.getElementById('hamburger');
+    const overlayEl = document.getElementById('overlay');
+    
+    const STATUS_OPTIONS = ['to-do', 'doing', 'finished', 'cancelled'];
+    
+    let currentNotes = [];
+    let currentOpenDate = '';
+    let autoSaveTimer = null;
+
+    function isMobile() {
+        return window.innerWidth <= 768;
+    }
+
+    function toggleSidebar() {
+        sidebarEl.classList.toggle('show');
+        overlayEl.classList.toggle('show');
+    }
+
+    function formatDateForDisplay(dateStr) {
+        const date = new Date(dateStr + 'T00:00:00'); // Assume local timezone for display
+        return date.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+    }
+
+    async function loadNote(dateStr) {
+        document.querySelectorAll('.date-list li').forEach(li => li.classList.remove('active'));
+        const activeLi = document.querySelector(`.date-list li[data-date="${dateStr}"]`);
+        if (activeLi) activeLi.classList.add('active');
+
+        currentOpenDate = dateStr;
+        noteDateHeaderEl.textContent = formatDateForDisplay(dateStr);
+        
+        const response = await fetch(`/notes/api/get/${dateStr}`);
+        currentNotes = await response.json();
+        renderTable();
+        
+        if (isMobile()) {
+            toggleSidebar();
+        }
+    }
+
+    function autoResizeTextarea(textarea) {
+        textarea.style.height = 'auto';
+        textarea.style.height = (textarea.scrollHeight) + 'px';
+    }
+
+    function appendTableRow(note) {
+        const row = tbodyEl.insertRow();
+        const taskCell = row.insertCell();
+        const taskInput = document.createElement('textarea');
+        taskInput.rows = 1;
+        taskInput.value = note.task;
+        taskInput.placeholder = 'New item...';
+        taskCell.appendChild(taskInput);
+
+        const statusCell = row.insertCell();
+        statusCell.style.width = '150px';
+        const statusSelect = document.createElement('select');
+        STATUS_OPTIONS.forEach(opt => {
+            const option = document.createElement('option');
+            option.value = opt;
+            option.textContent = opt.charAt(0).toUpperCase() + opt.slice(1);
+            if (note.status === opt) option.selected = true;
+            statusSelect.appendChild(option);
+        });
+        statusCell.appendChild(statusSelect);
+        return row;
+    }
+
+    function renderTable() {
+        tbodyEl.innerHTML = '';
+        let notesToRender = currentNotes;
+        if (!notesToRender || notesToRender.length === 0) {
+            notesToRender = [{ task: '', status: 'to-do' }];
+        }
+        notesToRender.forEach(appendTableRow);
+        tbodyEl.querySelectorAll('textarea').forEach(autoResizeTextarea);
+    }
+    
+    async function saveCurrentNote() {
+        if (!currentOpenDate) return;
+
+        const notesToSave = [];
+        tbodyEl.querySelectorAll('tr').forEach(row => {
+            const taskInput = row.querySelector('textarea');
+            const statusSelect = row.querySelector('select');
+            if (taskInput && statusSelect && taskInput.value.trim() !== '') {
+                notesToSave.push({ task: taskInput.value, status: statusSelect.value });
+            }
+        });
+        
+        saveStatusEl.textContent = 'Saving...';
+        try {
+            const response = await fetch(`/notes/api/save/${currentOpenDate}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(notesToSave)
+            });
+            if (response.ok) {
+                saveStatusEl.textContent = 'Saved.';
+                currentNotes = notesToSave;
+            } else {
+                saveStatusEl.textContent = 'Error saving.';
+            }
+        } catch (error) {
+            saveStatusEl.textContent = 'Network error.';
+        }
+        
+        setTimeout(() => { saveStatusEl.textContent = ''; }, 2000);
+    }
+
+    function triggerAutoSave() {
+        clearTimeout(autoSaveTimer);
+        autoSaveTimer = setTimeout(saveCurrentNote, 2000);
+    }
+
+    // Event Listeners
+    hamburgerEl.addEventListener('click', toggleSidebar);
+    overlayEl.addEventListener('click', toggleSidebar);
+    
+    btnAdd.addEventListener('click', () => {
+        const newRow = appendTableRow({ task: '', status: 'to-do' });
+        newRow.querySelector('textarea').focus();
+    });
+
+    document.getElementById('notes-table').addEventListener('input', (event) => {
+        if (event.target.tagName.toLowerCase() === 'textarea') {
+            autoResizeTextarea(event.target);
+        }
+        triggerAutoSave();
+    });
+
+    // Initial Load
+    (async function init() {
+        const response = await fetch('/notes/api/list');
+        const dates = await response.json();
+
+        dateListEl.innerHTML = '';
+        dates.forEach(dateStr => {
+            const li = document.createElement('li');
+            li.textContent = formatDateForDisplay(dateStr);
+            li.dataset.date = dateStr;
+            li.addEventListener('click', () => {
+                if(currentOpenDate !== dateStr) loadNote(dateStr);
+            });
+            dateListEl.appendChild(li);
+        });
+
+        if (dates.length > 0) {
+            await loadNote(dates[0]);
+        }
+    })();
+</script>
+
+</body>
+</html>
+

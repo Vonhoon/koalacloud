@@ -33,3 +33,4 @@ services:
       - /etc/shadow:/etc/shadow:ro
       - /etc/group:/etc/group:ro
       - /etc/pam.d/:/etc/pam.d/:ro
+      - /opt/koala-notes:/daily_notes 
