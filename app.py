@@ -230,16 +230,30 @@ def _aria2_call(method, params=None):
     req = urllib.request.Request(ARIA2_RPC_URL, data=data, headers={"Content-Type": "application/json"})
     with urllib.request.urlopen(req, timeout=10) as r:
         return json.loads(r.read().decode())
-    
-
+# ==================== Static files ====================
+@app.route('/manifest.json')
+def manifest():
+    return send_file('static/manifest.json', mimetype='application/manifest+json')
 # ==================== yt-dlp helper ====================
-def run_youtubedl(url, dest_path):
+def run_youtubedl(url, dest_path, audio_only=True):
     try:
-        ydl_opts = {
-            'format': 'bestvideo[height<=1080]+bestaudio/best',
-            'outtmpl': f'{dest_path}/%(title)s.%(ext)s',
-            'noplaylist': True,
-        }
+        if audio_only:
+            ydl_opts = {
+                'format': 'bestaudio/best',
+                'postprocessors': [{
+                    'key': 'FFmpegExtractAudio',
+                    'preferredcodec': 'mp3',
+                    'preferredquality': '192',
+                }],
+                'outtmpl': f'{dest_path}/%(title)s.%(ext)s',
+                'noplaylist': True,
+            }
+        else:
+            ydl_opts = {
+                'format': 'bestvideo[height<=1080]+bestaudio/best',
+                'outtmpl': f'{dest_path}/%(title)s.%(ext)s',
+                'noplaylist': True,
+            }
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             ydl.download([url])
         print(f"yt-dlp: Successfully downloaded {url}")
@@ -668,15 +682,16 @@ def youtubedl_add():
     data = request.get_json(force=True, silent=True) or {}
     link = (data.get('link') or '').strip()
     dest = (data.get('dest') or '').strip()
+    audio_only = bool(data.get('audio_only', False))
     if not link:
         abort(400, 'Missing link')
 
     dpath = _safe_join_download(dest)
     dpath.mkdir(parents=True, exist_ok=True)
     
-    thread = threading.Thread(target=run_youtubedl, args=(link, dpath))
+    thread = threading.Thread(target=run_youtubedl, args=(link, dpath, audio_only))
     thread.start()
-    return jsonify({'ok': True, 'result': {'message': 'Video download started in the background.'}})
+    return jsonify({'ok': True, 'result': {'message': f'Video download started in the background.{audio_only=}'}})
 
 
 # ==================== Public share endpoints (no auth) ====================
