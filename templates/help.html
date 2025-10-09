@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ubuntu Server Cheat Sheet</title>
+    <style>
+        /* --- Global Styles & Terminal Theme --- */
+        :root {
+            --background-color: #1a1a1a;
+            --text-color: #00ff41;
+            --header-color: #00ff41;
+            --prompt-color: #8cff9d;
+            --comment-color: #888;
+            --border-color: #333;
+        }
+
+        body {
+            background-color: var(--background-color);
+            color: var(--text-color);
+            font-family: 'Courier New', Courier, monospace;
+            line-height: 1.6;
+            margin: 0;
+            padding: 1.5rem;
+            font-size: 16px;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            border: 1px solid var(--border-color);
+            padding: 1rem 2rem;
+            box-shadow: 0 0 15px rgba(0, 255, 65, 0.1);
+            background-color: #111;
+        }
+
+        /* --- Typography --- */
+        h1, h2 {
+            color: var(--header-color);
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 8px;
+            margin-top: 2rem;
+            margin-bottom: 1.5rem;
+            text-shadow: 0 0 5px rgba(0, 255, 65, 0.5);
+        }
+
+        h1 {
+            font-size: 2.5rem;
+            text-align: center;
+        }
+
+        h1::after {
+            content: '_';
+            animation: blink 1s step-end infinite;
+        }
+
+        h2::before {
+            content: '~$ ';
+            color: var(--prompt-color);
+        }
+
+        code {
+            background-color: rgba(0, 255, 65, 0.05);
+            border: 1px solid rgba(0, 255, 65, 0.2);
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-weight: bold;
+            color: #adff2f; /* Lighter green for commands */
+        }
+
+        .command-block {
+            background-color: #222;
+            border-left: 3px solid var(--prompt-color);
+            padding: 1rem;
+            margin: 1rem 0;
+            overflow-x: auto;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+
+        .command-block::before {
+            content: '$ ';
+            color: var(--prompt-color);
+        }
+
+        .comment {
+            color: var(--comment-color);
+            font-style: italic;
+        }
+
+        ul {
+            list-style-type: none;
+            padding-left: 0;
+        }
+
+        li {
+            margin-bottom: 1rem;
+        }
+
+        strong {
+            color: #fff;
+        }
+
+        /* --- Blinking Cursor Animation --- */
+        @keyframes blink {
+            from, to { opacity: 1; }
+            50% { opacity: 0; }
+        }
+
+        /* --- Responsive Design --- */
+        @media (max-width: 600px) {
+            body {
+                padding: 0.5rem;
+                font-size: 14px;
+            }
+            .container {
+                padding: 0.5rem 1rem;
+            }
+            h1 {
+                font-size: 1.8rem;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <h1>Ubuntu Server Cheat Sheet</h1>
+
+        <!-- Core Concepts -->
+        <h2>Core Concepts</h2>
+        <ul>
+            <li><strong>The Pipe <code>|</code></strong>: Takes the output of one command and uses it as the input for another. <br><span class="comment"># Example: list processes, then find the 'nginx' line.</span></li>
+            <li><strong>`grep`</strong>: Searches for a text pattern in its input. Almost always used with a pipe. <br><span class="comment"># Example: `ps aux | grep "nginx"`</span></li>
+        </ul>
+
+        <!-- File Operations -->
+        <h2>Basic Navigation & File Ops</h2>
+        <ul>
+            <li><code>ls -la</code> <span class="comment"># List all files/folders in long format.</span></li>
+            <li><code>cd /path/to/dir</code> <span class="comment"># Change directory. `cd ~` for home, `cd ..` for up one level.</span></li>
+            <li><code>pwd</code> <span class="comment"># Print current working directory.</span></li>
+            <li><code>cp source.txt dest/</code> <span class="comment"># Copy a file. Use `-r` for directories.</span></li>
+            <li><code>mv old.txt new.txt</code> <span class="comment"># Move or rename a file/directory.</span></li>
+            <li><code>rm file.txt</code> <span class="comment"># Remove a file. Use `-r` for directories. BE CAREFUL!</span></li>
+            <li><code>mkdir new_dir</code> <span class="comment"># Make a new directory.</span></li>
+        </ul>
+
+        <!-- Service Management -->
+        <h2>Service Management (systemd)</h2>
+        <ul>
+            <li><code>systemctl status nginx</code> <span class="comment"># Check the status of a service.</span></li>
+            <li><code>systemctl start nginx</code> <span class="comment"># Start a service.</span></li>
+            <li><code>systemctl stop nginx</code> <span class="comment"># Stop a service.</span></li>
+            <li><code>systemctl restart nginx</code> <span class="comment"># Restart a service.</span></li>
+            <li><code>systemctl enable nginx</code> <span class="comment"># Enable service to start on boot.</span></li>
+            <li><code>systemctl disable nginx</code> <span class="comment"># Disable service from starting on boot.</span></li>
+            <li><code>systemctl list-units --type=service --all</code> <span class="comment"># List all available services.</span></li>
+        </ul>
+
+        <!-- Process Management -->
+        <h2>Process Management</h2>
+        <ul>
+            <li><code>htop</code> <span class="comment"># Interactive process viewer.</span></li>
+            <li><code>ps aux</code> <span class="comment"># Static list of all running processes.</span></li>
+            <li><code>kill 1234</code> <span class="comment"># Gracefully terminate process with PID 1234.</span></li>
+            <li><code>kill -9 1234</code> <span class="comment"># Force-kill a process. Last resort.</span></li>
+            <li><code>pkill firefox</code> <span class="comment"># Kill a process by its name.</span></li>
+        </ul>
+        
+        <!-- Remote Access (SSH) -->
+        <h2>Remote Access (SSH)</h2>
+        <ul>
+            <li><div class="command-block">ssh username@your_server_ip</div> <span class="comment"># Connect to your server.</span></li>
+            <li><div class="command-block">ssh-copy-id username@your_server_ip</div> <span class="comment"># Copy your public key for passwordless login.</span></li>
+        </ul>
+
+        <!-- Docker & Docker Compose -->
+        <h2>Docker & Docker Compose</h2>
+        <h3>Docker Engine</h3>
+        <ul>
+            <li><code>docker ps</code> <span class="comment"># List running containers. `-a` for all.</span></li>
+            <li><code>docker exec -it my_container /bin/bash</code> <span class="comment"># Get a shell inside a container.</span></li>
+            <li><code>docker logs -f my_container</code> <span class="comment"># Follow the logs of a container.</span></li>
+            <li><code>docker rm my_container</code> <span class="comment"># Remove a stopped container.</span></li>
+            <li><code>docker rmi my_image</code> <span class="comment"># Remove an image.</span></li>
+        </ul>
+        <h3>Docker Compose</h3>
+        <p class="comment"># Run these commands in the same directory as your 'docker-compose.yml'</p>
+        <ul>
+            <li><code>docker compose up -d</code> <span class="comment"># Start all services in the background.</span></li>
+            <li><code>docker compose down</code> <span class="comment"># Stop and remove containers/networks. `-v` to remove volumes.</span></li>
+            <li><code>docker compose pull</code> <span class="comment"># Pull the latest images for all services.</span></li>
+            <li><code>docker compose logs -f my_service</code> <span class="comment"># Follow logs for a specific service.</span></li>
+        </ul>
+
+        <!-- System Info -->
+        <h2>System & Hardware Info</h2>
+        <ul>
+            <li><code>free -h</code> <span class="comment"># Check RAM usage (human-readable).</span></li>
+            <li><code>df -h</code> <span class="comment"># Check disk space usage (human-readable).</span></li>
+            <li><code>ip a</code> <span class="comment"># Show network interface and IP addresses.</span></li>
+            <li><code>sensors</code> <span class="comment"># Check CPU temperature (requires `lm-sensors`).</span></li>
+            <li><code>journalctl -fu nginx</code> <span class="comment"># Follow system logs for the nginx service.</span></li>
+        </ul>
+
+        <!-- Config Files -->
+        <h2>Common Config File Locations</h2>
+        <ul>
+            <li><strong>SSH:</strong> <code>~/.ssh/config</code></li>
+            <li><strong>Nginx:</strong> <code>/etc/nginx/sites-available/</code></li>
+            <li><strong>Apache:</strong> <code>/etc/apache2/sites-available/</code></li>
+            <li><strong>Netplan (Networking):</strong> <code>/etc/netplan/</code></li>
+            <li><strong>Docker Compose projects:</strong> <code>/home/user/my-project/docker-compose.yml</code> <span class="comment"># (User-defined)</span></li>
+        </ul>
+
+    </div>
+
+</body>
+</html>
+

@@ -467,6 +467,10 @@ def storage_api():
         except Exception:
             continue
     return jsonify({'ok': True, 'storage': out})
+# ==================== Help Page ====================
+@app.get('/help')
+def help_page():
+    return render_template('help.html', app_name=APP_NAME)
 
 # ==================== Drive page ====================
 @app.get('/')
@@ -824,7 +828,7 @@ def notes_save_api(date_str): # Renamed to avoid conflict with function `save`
         
         data = request.get_json()
         if data is None:
-            return jsonify({'status': 'error', 'message': 'Invalid data'}), 400
+            return jsonify({'status': 'error', 'message': 'Invalid data'}), 200
             
         os.makedirs(NOTES_DIR, exist_ok=True)
         with open(note_path, 'w', encoding='utf-8') as f:
@@ -832,8 +836,11 @@ def notes_save_api(date_str): # Renamed to avoid conflict with function `save`
             
         return jsonify({'status': 'success', 'message': f'Note for {date_str} saved!'})
     except ValueError:
-        return jsonify({'error': 'Invalid date format'}), 400
-
+        return jsonify({'error': 'Invalid date format'}), 200
+@app.route('/health')
+def health_check():
+    """Health check endpoint."""
+    return jsonify({'status': 'ok'})
 # ==================== JSON error formatting ====================
 @app.errorhandler(400)
 @app.errorhandler(403)
