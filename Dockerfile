@@ -37,4 +37,4 @@ COPY . .
 COPY --from=builder /build/output.css ./static/output.css
 
 EXPOSE 5000
-CMD ["gunicorn", "--workers", "4", "--bind", "0.0.0.0:5000", "--worker-class", "eventlet", "app:socketio"]
+CMD ["gunicorn", "--workers", "4", "--bind", "0.0.0.0:5000", "--worker-class", "eventlet", "app:app"]

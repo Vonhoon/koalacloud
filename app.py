@@ -377,15 +377,8 @@ def _torrent_task():
             pass
         socketio.sleep(2)
 
-
-_started = False
-@app.before_request
-def _start_tasks_once():
-    global _started
-    if not _started:
-        socketio.start_background_task(_stats_task)
-        socketio.start_background_task(_torrent_task)
-        _started = True
+socketio.start_background_task(target=_stats_task)
+socketio.start_background_task(target=_torrent_task)
 
 # ==================== DB ====================
 def _db_init():

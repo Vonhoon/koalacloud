@@ -1,3 +1,30 @@
-*.tar.gz
-docker-compose.yaml
+# Git history
+.git
 .gitignore
+
+# Docker stuff
+Dockerfile
+.dockerignore
+
+# Python virtual environment and cache
+venv
+.venv
+__pycache__
+
+# IDE and OS files
+.idea
+.vscode
+*.pyc
+*.pyo
+*.pyd
+
+# Local database (should use the one in the volume)
+share.db
+share.db-journal
+
+# Deployment script
+deploy.sh
+.version
+
+#tarball
+*.tar.gz
