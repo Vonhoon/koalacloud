@@ -39,7 +39,7 @@ IMAGE_FILE="${IMAGE_NAME}_${BASE_TAG}.${BUILD_NUMBER}.tar.gz"
 echo "🔨 Building new image..."
 echo "   - Versioned Tag: ${VERSIONED_TAG}"
 echo "   - Static Tag:    ${STATIC_TAG} (for docker-compose)"
-docker build -t "${VERSIONED_TAG}" -t "${STATIC_TAG}" .
+docker build --no-cache -t "${VERSIONED_TAG}" -t "${STATIC_TAG}" .
 
 echo "📦 Saving and compressing image to ${IMAGE_FILE}..."
 docker save "${STATIC_TAG}" | gzip > "${IMAGE_FILE}"
