@@ -12,6 +12,8 @@ from functools import wraps
 from datetime import datetime
 import glob
 from zoneinfo import ZoneInfo
+import logging
+from logging.handlers import RotatingFileHandler
 
 from flask import Flask, render_template, request, jsonify, send_file, abort, session, redirect, url_for
 from flask_socketio import SocketIO
@@ -45,6 +47,7 @@ DASH_MOUNTS = [Path(p) for p in os.getenv('DASH_MOUNTS', './storage').split(',')
 
 ALLOWED_EXT = {'txt','pdf','png','jpg','jpeg','gif','mp4','mkv','avi','zip','rar','7z','srt','ass'}
 
+LOG_PATH = DB_PATH.parent / 'koalacloud.log'
 
 # ==================== App ====================
 app = Flask(__name__, static_folder="static")
@@ -53,6 +56,16 @@ app.config['MAX_CONTENT_LENGTH'] = MAX_UPLOAD_MB * 1024 * 1024
 socketio = SocketIO(app, cors_allowed_origins='*')
 
 DRIVE_ENABLED = True
+
+log_formatter = logging.Formatter('%(asctime)s %(levelname)s: %(message)s [in %(pathname)s:%(lineno)d]')
+log_handler = RotatingFileHandler(LOG_PATH, maxBytes=1024*1024, backupCount=1) # 1MB log file
+log_handler.setFormatter(log_formatter)
+log_handler.setLevel(logging.INFO)
+
+app.logger.addHandler(log_handler)
+app.logger.setLevel(logging.INFO)
+
+app.logger.info('Koala Cloud starting up...')
 
 # trust Cloudflare's proxy headers
 app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
@@ -428,6 +441,20 @@ def auth_status():
 @app.get('/admin')
 def admin_page():
     return render_template('admin.html', app_name=APP_NAME)
+
+@app.get('/admin/logs')
+@auth_required_json
+def get_logs():
+    try:
+        with open(LOG_PATH, 'r') as f:
+            lines = f.readlines()
+        last_100_lines = lines[-100:]
+        return jsonify({'ok': True, 'logs': "".join(last_100_lines)})
+    except FileNotFoundError:
+        return jsonify({'ok': True, 'logs': 'Log file not found.'})
+    except Exception as e:
+        app.logger.error(f"Error reading log file: {e}")
+        return jsonify({'ok': False, 'error': 'Could not read log file.'}), 500
 
 @app.post('/admin/services/toggle')
 @auth_required_json
@@ -850,6 +877,7 @@ def health_check():
 @app.errorhandler(500)
 def json_errors(err):
     code = getattr(err, 'code', 500)
+    app.logger.error(f'HTTP Error {code}: {getattr(err, "description", str(err))} - URL: {request.url}')
     return jsonify({'ok': False, 'error': getattr(err, 'description', str(err)), 'code': code}), code
 
 # ==================== Main ====================

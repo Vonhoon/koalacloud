@@ -1,13 +1,14 @@
 <!doctype html>
 <html>
 <head>
-  <meta charset="utf-8" />
+  <meta charset="utf-t" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>{{ app_name }} — Admin</title>
   <link href="{{ url_for('static', filename='output.css') }}" rel="stylesheet">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
   <style>
-    body { 
+    /* Use a system font stack for a native feel, similar to Apple's design philosophy */
+    body {
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
     }
   </style>
@@ -65,7 +66,8 @@
         <h2 class="text-xl font-semibold mb-4">Storage</h2>
         <div id="stg" class="space-y-4"></div>
       </div>
-            
+
+
       <div class="bg-white p-4 sm:p-5 rounded-xl shadow-sm lg:col-span-3">
         <h2 class="text-xl font-semibold mb-4">Download Manager</h2>
 
@@ -82,13 +84,6 @@
             </div>
           </div>
         </div>
-        
-        <div class="mt-4 flex items-center gap-4">
-            <div class="flex items-center">
-                <input id="audio-only" type="checkbox" class="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500">
-                <label for="audio-only" class="ml-2 block text-sm text-gray-900">Audio only (for YouTube)</label>
-            </div>
-        </div>
 
         <div class="mt-4 flex gap-2">
           <button id="btn-download" class="px-4 py-2 rounded-md bg-blue-500 hover:bg-blue-600 text-white font-semibold transition-colors">Download</button>
@@ -97,16 +92,24 @@
 
         <h3 class="text-lg font-semibold mt-6 mb-3">Active Torrents</h3>
         <div id="tx-progress" class="max-h-64 overflow-auto space-y-2 text-sm pr-2"></div>
+
         <details class="mt-6 group">
           <summary class="list-none cursor-pointer text-lg font-semibold flex items-center gap-2">
             History
             <svg class="w-4 h-4 transition-transform group-open:rotate-90" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" /></svg>
           </summary>
           <div id="tx-history" class="mt-3 space-y-2 text-sm"></div>
-         
         </details>
       </div>
-    </div>
+
+      <div class="bg-white p-4 sm:p-5 rounded-xl shadow-sm lg:col-span-3">
+        <div class="flex justify-between items-center mb-4">
+            <h2 class="text-xl font-semibold">System Logs</h2>
+            <button id="btn-refresh-logs" class="px-4 py-2 text-sm font-medium rounded-lg bg-white border border-gray-300 hover:bg-gray-100 transition-colors">Refresh</button>
+        </div>
+        <pre id="logs-content" class="bg-gray-800 text-white p-4 rounded-lg text-xs overflow-auto h-72 font-mono whitespace-pre-wrap"></pre>
+      </div>
+      </div>
   </div>
 
   <div id="browse-modal" class="fixed inset-0 hidden items-center justify-center bg-black/50 backdrop-blur-sm p-4">
@@ -131,6 +134,8 @@
   </div>
 
 <script>
+// --- SCRIPT IS MODIFIED BELOW ---
+
 const loginDiv = document.getElementById('login');
 const dashDiv  = document.getElementById('dash');
 const errEl    = document.getElementById('err');
@@ -209,11 +214,13 @@ async function initDash(){
 
   const sock=io();
   sock.on('system_stats', (d)=>{
+    // CPU & MEM
     document.getElementById('cpu').textContent = d.cpu_percent.toFixed(1)+'%';
     document.getElementById('cpuBar').style.width = d.cpu_percent+'%';
     document.getElementById('mem').textContent = d.memory_percent.toFixed(1)+'%';
     document.getElementById('memBar').style.width = d.memory_percent+'%';
 
+    // TEMPS
     const tempsEl = document.getElementById('temps');
     tempsEl.innerHTML = '';
     (d.temps || []).forEach(t=>{
@@ -229,6 +236,7 @@ async function initDash(){
     });
     if (!tempsEl.innerHTML) tempsEl.innerHTML = `<div class="text-gray-400">No sensors found</div>`;
 
+    // NETWORK
     const netEl = document.getElementById('net');
     netEl.innerHTML = '';
     const ifaces = d.net || {};
@@ -258,6 +266,7 @@ async function initDash(){
   });
 }
 
+// ---------- Torrent UI ----------
 function renderTorrents(data){
   const list = data.progress || [];
   const el = document.getElementById('tx-progress');
@@ -306,70 +315,41 @@ function renderTorrents(data){
   });
 }
 
+
 async function loadHistory(){
   try{
     const h=await api('/admin/torrents/history');
     const el=document.getElementById('tx-history'); el.innerHTML='';
     if (h.history.length === 0) {
-      el.innerHTML = `<div class="text-gray-400 text-center py-4">Torrent history is empty.</div>`;
-    } else {
-        h.history.forEach(it=>{
-            const when=new Date((it.completed_at||it.added_at)*1000).toLocaleString();
-            const row=document.createElement('div');
-            row.className='p-3 rounded-lg border border-gray-200 bg-gray-50/50 flex justify-between gap-3 items-start';
-            const size=it.size_bytes?(it.size_bytes/1073741824).toFixed(2)+' GB':'';
-            row.innerHTML=`
-                <div class="truncate">
-                <div class="font-medium">${it.name}</div>
-                <div class="text-xs text-gray-500 mt-1">${it.dest} • ${when} ${size?('• '+size):''}</div>
-                </div>
-                <button class="flex-shrink-0 text-red-500 hover:text-red-700 w-6 h-6 flex items-center justify-center rounded-full hover:bg-red-100 transition-colors" data-hdel="${it.id}" title="Delete history entry">×</button>
-            `;
-            el.appendChild(row);
-        });
-        el.querySelectorAll('[data-hdel]').forEach(btn=>{
-            btn.onclick=async()=>{
-                try{
-                    await api('/admin/torrents/history/delete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:Number(btn.dataset.hdel)})});
-                    loadHistory();
-                }catch(ex){ alert('Error: '+ex.message); }
-            };
-        });
+      el.innerHTML = `<div class="text-gray-400 text-center py-4">History is empty.</div>`;
+      return;
     }
+    h.history.forEach(it=>{
+      const when=new Date((it.completed_at||it.added_at)*1000).toLocaleString();
+      const row=document.createElement('div');
+      row.className='p-3 rounded-lg border border-gray-200 bg-gray-50/50 flex justify-between gap-3 items-start';
+      const size=it.size_bytes?(it.size_bytes/1073741824).toFixed(2)+' GB':'';
+      row.innerHTML=`
+        <div class="truncate">
+          <div class="font-medium">${it.name}</div>
+          <div class="text-xs text-gray-500 mt-1">${it.dest} • ${when} ${size?('• '+size):''}</div>
+        </div>
+        <button class="flex-shrink-0 text-red-500 hover:text-red-700 w-6 h-6 flex items-center justify-center rounded-full hover:bg-red-100 transition-colors" data-hdel="${it.id}" title="Delete history entry">×</button>
+      `;
+      el.appendChild(row);
+    });
+    el.querySelectorAll('[data-hdel]').forEach(btn=>{
+      btn.onclick=async()=>{
+        try{
+          await api('/admin/torrents/history/delete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:Number(btn.dataset.hdel)})});
+          loadHistory();
+        }catch(ex){ alert('Error: '+ex.message); }
+      };
+    });
   }catch{}
-  try {
-    const h = await api('/admin/youtubedl/history');
-    const el = document.getElementById('ytdl-history');
-    el.innerHTML = '';
-    if (h.history.length === 0) {
-        el.innerHTML += `<div class="text-gray-400 text-center py-4">YouTube download history is empty.</div>`;
-    } else {
-        h.history.forEach(it => {
-            const when = new Date((it.completed_at || it.added_at) * 1000).toLocaleString();
-            const row = document.createElement('div');
-            row.className = 'p-3 rounded-lg border border-gray-200 bg-gray-50/50 flex justify-between gap-3 items-start';
-            row.innerHTML = `
-                <div class="truncate">
-                    <div class="font-medium">${it.name}</div>
-                    <div class="text-xs text-gray-500 mt-1">${it.dest} • ${when}</div>
-                </div>
-                <button class="flex-shrink-0 text-red-500 hover:text-red-700 w-6 h-6 flex items-center justify-center rounded-full hover:bg-red-100 transition-colors" data-yhdel="${it.id}" title="Delete history entry">×</button>
-            `;
-            el.appendChild(row);
-        });
-        el.querySelectorAll('[data-yhdel]').forEach(btn => {
-            btn.onclick = async () => {
-                try {
-                    await api('/admin/youtubedl/history/delete', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: Number(btn.dataset.yhdel) }) });
-                    loadHistory();
-                } catch (ex) { alert('Error: ' + ex.message); }
-            };
-        });
-    }
-    } catch { }
 }
 
-function initSockets(){
+function initTorrentSockets(){
   const sock=io();
   sock.on('torrent_status',(d)=>{ renderTorrents(d); });
 }
@@ -377,7 +357,6 @@ function initSockets(){
 async function startDownload(){
   const link = document.getElementById('download-link').value.trim();
   const dest = document.getElementById('dest').value.trim();
-  const audioOnly = document.getElementById('audio-only').checked;
   if (!link) return alert('Enter a magnet link or video URL');
 
   let url, body, successMessage;
@@ -388,7 +367,7 @@ async function startDownload(){
     successMessage = 'Torrent download started! Progress will appear below.';
   } else if (link.includes('youtube.com') || link.includes('youtu.be')) {
     url = '/admin/youtubedl/add';
-    body = JSON.stringify({ link, dest, audio_only: audioOnly });
+    body = JSON.stringify({ link, dest });
     successMessage = 'YouTube download started in the background.';
   } else {
     return alert('Invalid link. Please use a magnet link or a YouTube URL.');
@@ -403,6 +382,7 @@ async function startDownload(){
   }
 }
 
+// ---------- Browse modal ----------
 const modal=document.getElementById('browse-modal');
 const browsePath=document.getElementById('browse-path');
 const browseList=document.getElementById('browse-list');
@@ -410,15 +390,19 @@ var historyTimer;
 
 async function browseLoad(path=''){
   const j = await api('/admin/torrents/browse?path='+encodeURIComponent(path));
+
+  // update location info
   document.getElementById('browse-root-abs').textContent = j.root_abs || '';
   document.getElementById('browse-cwd').textContent = j.cwd || '/';
   document.getElementById('browse-path').value = j.cwd || '/';
 
+  // render subdirs
   const browseList = document.getElementById('browse-list');
   browseList.innerHTML = '';
   const ul = document.createElement('ul');
   ul.className = 'divide-y divide-gray-200';
 
+  // The 'Up' button is handled by the static HTML button now, but this is a good fallback
   if (j.parent && j.cwd !== '/') {
     const liUp = document.createElement('li');
     liUp.className = 'px-4 py-3 hover:bg-gray-100 cursor-pointer flex items-center gap-3';
@@ -468,17 +452,35 @@ document.getElementById('btn-mkdir').onclick=async()=>{
     alert('Folder created.'); if(!modal.classList.contains('hidden')) browseLoad(parent);
   }catch(ex){ alert('Error: '+ex.message); }
 };
-
+// --- MODIFIED to use new function name ---
 document.getElementById('btn-download').onclick=startDownload;
+
+// *** NEW *** Log fetching logic
+async function loadLogs() {
+  const logsContent = document.getElementById('logs-content');
+  logsContent.textContent = 'Loading logs...';
+  try {
+    const data = await api('/admin/logs');
+    logsContent.textContent = data.logs || 'No logs yet. Everything is running smoothly!';
+    // Scroll to the bottom
+    logsContent.scrollTop = logsContent.scrollHeight;
+  } catch (ex) {
+    logsContent.textContent = 'Error loading logs: ' + ex.message;
+  }
+}
+
+document.getElementById('btn-refresh-logs').addEventListener('click', loadLogs);
+// *** END NEW ***
 
 const _initDashOrig = initDash;
 initDash = async function () {
   await _initDashOrig();
-  initSockets();
-  loadHistory();
+  initTorrentSockets();
+  loadHistory();                       // initial fetch
+  loadLogs();                          // *** NEW *** initial log fetch
 
-  if (!historyTimer) {
-    historyTimer = setInterval(loadHistory, 10000);
+  if (!historyTimer) {                 // start one timer only
+    historyTimer = setInterval(loadHistory, 10000);  // every 10s
   }
 };
 
