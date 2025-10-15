@@ -4,6 +4,10 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>{{ app_name }} — Admin</title>
+  <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
+  <link rel="manifest" href="/site.webmanifest">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
   <style>
     /* A simple, text-focused, and functional stylesheet */
@@ -13,6 +17,11 @@
       color: #111;
       margin: 0;
       padding: 1em;
+    }
+
+    /* --- CHANGE 1: Make base elements and container responsive --- */
+    * {
+        box-sizing: border-box; /* A good practice for easier layout math */
     }
 
     /* Layout */
@@ -28,19 +37,22 @@
       padding: 0 0.5em;
     }
     .hidden { display: none !important; }
+
     .container {
       max-width: 900px;
+      width: 100%; /* Allow the container to shrink on smaller screens */
       margin: 0 auto;
       background-color: #fff;
       border: 1px solid #ccc;
       padding: 1em 2em;
     }
 
-    /* Forms & Buttons */
+    /* --- CHANGE 2: Make form inputs responsive --- */
     input[type="text"], input[type="password"] {
       padding: 8px;
       border: 1px solid #ccc;
-      width: 250px;
+      width: 100%; /* Use 100% width to adapt to parent */
+      max-width: 350px; /* Optional: set a max-width for very wide screens */
       margin-bottom: 1em;
     }
     button {
@@ -71,6 +83,8 @@
       border: 1px solid #ccc;
       padding: 2em;
       background-color: #fff;
+      max-width: 400px;
+      width: 90%;
     }
     #err { color: #d9534f; margin-top: 1em; }
 
@@ -84,20 +98,34 @@
       background-color: #555;
       height: 100%;
     }
+
+    /* --- CHANGE 3: Fix the log overflow issue --- */
     #logs-content {
       background-color: #1e1e1e;
       color: #d4d4d4;
       padding: 1em;
       font-size: 0.85em;
       height: 300px;
-      overflow-auto;
-      white-space: pre-wrap;
+      overflow: auto;
+      white-space: pre-wrap; 
+      overflow-wrap: break-word; 
+      overflow-x: auto;
       border: 1px solid #ccc;
     }
     .torrent-item, .history-item, .network-item, .service-item, .storage-item, .temp-item {
       border: 1px solid #e0e0e0;
       padding: 0.75em;
       margin-bottom: 0.5em;
+    }
+
+    /* Download manager inputs */
+    #download-inputs {
+        display: flex;
+        gap: 10px;
+        align-items: flex-end;
+    }
+    #download-inputs > div {
+        flex-grow: 1;
     }
 
     /* Browse Modal */
@@ -108,6 +136,7 @@
       display: flex;
       align-items: center;
       justify-content: center;
+      z-index: 100;
     }
     #browse-modal > div {
       background-color: #fff;
@@ -126,6 +155,27 @@
     #browse-list ul { list-style-type: none; padding: 0; margin: 0; }
     #browse-list li { padding: 5px; cursor: pointer; }
     #browse-list li:hover { background-color: #f0f0f0; }
+
+
+    /* --- CHANGE 4: Add media query for better mobile layout --- */
+    @media (max-width: 600px) {
+        body {
+            padding: 0; /* Remove body padding on mobile */
+        }
+        .container {
+            padding: 1em; /* Reduce container padding */
+            border-left: none;
+            border-right: none;
+        }
+        /* Stack download inputs vertically */
+        #download-inputs {
+            flex-direction: column;
+            align-items: stretch;
+        }
+        #download-inputs > div {
+           width: 100%;
+        }
+    }
   </style>
 </head>
 <body>
@@ -144,8 +194,7 @@
 
   <div id="dash" class="hidden container">
     <div style="display: flex; justify-content: space-between; align-items: center;">
-        <h1>{{ app_name }} — Admin</h1>
-        <button id="btn-logout">Logout</button>
+        <h1>{{ app_name }}</h1> <button id="btn-logout">Logout</button>
     </div>
     <hr>
 
@@ -187,13 +236,18 @@
 
     <fieldset>
         <legend>Download Manager</legend>
-        <div>
-            <label for="download-link">Magnet or Video URL</label><br>
-            <input id="download-link" placeholder="magnet: or https://..." style="width: 98%;"><br><br>
-
-            <label for="dest">Destination</label><br>
-            <input id="dest" value="/Video" style="width: calc(98% - 100px);">
-            <button id="btn-browse">Browse</button>
+        <div id="download-inputs">
+            <div style="flex-grow: 1;">
+                <label for="download-link">Magnet or Video URL</label><br>
+                <input id="download-link" placeholder="magnet: or https://..." style="width: 100%;">
+            </div>
+            <div>
+                <label for="dest">Destination</label><br>
+                <div style="display: flex;">
+                    <input id="dest" value="/Video" style="width: 100%; min-width: 100px; flex-grow: 1;">
+                    <button id="btn-browse" style="margin-left: 5px;">Browse</button>
+                </div>
+            </div>
         </div>
         <br>
         <div>
@@ -239,7 +293,7 @@
   </div>
 
 <script>
-// --- SCRIPT IS MODIFIED BELOW ---
+// --- SCRIPT IS UNCHANGED ---
 
 const loginDiv = document.getElementById('login');
 const dashDiv  = document.getElementById('dash');
