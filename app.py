@@ -14,6 +14,8 @@ import glob
 from zoneinfo import ZoneInfo
 import logging
 from logging.handlers import RotatingFileHandler
+import eventlet
+eventlet.monkey_patch()
 
 from flask import Flask, render_template, request, jsonify, send_file, abort, session, redirect, url_for
 from flask_socketio import SocketIO
@@ -377,8 +379,14 @@ def _torrent_task():
             pass
         socketio.sleep(2)
 
-socketio.start_background_task(target=_stats_task)
-socketio.start_background_task(target=_torrent_task)
+_started = False
+@app.before_request
+def _start_tasks_once():
+    global _started
+    if not _started:
+        socketio.start_background_task(_stats_task)
+        socketio.start_background_task(_torrent_task)
+        _started = True
 
 # ==================== DB ====================
 def _db_init():

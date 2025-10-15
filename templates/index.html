@@ -4,28 +4,112 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>{{ app_name }} — Drive</title>
-  <link href="{{ url_for('static', filename='output.css') }}" rel="stylesheet">
-  <link rel="manifest" href="{{ url_for('static', filename='manifest.json') }}">
-</head>
-<body class="bg-white">
+  <style>
+    /* --- Core & Variables --- */
+    :root{ --border:#e5e7eb; --muted:#f8fafc; --ink:#0f172a; --ink-2:#334155; --accent:#0ea5e9; --accent-2:#0284c7; --warn:#dc2626; --selected-bg: #e0f2fe; --selected-border: #7dd3fc; }
+    *, :before, :after { box-sizing: border-box; border-width: 0; border-style: solid; border-color: var(--border); }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, "Helvetica Neue", Arial, system-ui, sans-serif; color:var(--ink); background-color: #fff; margin: 0; line-height: 1.5; -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
+    h1, h2 { font-size: inherit; font-weight: inherit; margin: 0; }
+    button, input { font-family: inherit; font-size: 100%; margin: 0; padding: 0; }
+    button { color: inherit; background-color: transparent; background-image: none; cursor: pointer; }
+    a { color: inherit; text-decoration: inherit; }
+    .hidden { display: none !important; }
+    .truncate { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
-  <!-- Header -->
-  <header class="card shadow-soft sticky top-0 z-40">
-    <div class="max-w-6xl mx-auto px-4 py-3 flex items-center gap-3">
-      <img src="{{ url_for('static', filename='koala.jpg') }}" alt="koala" class="h-10 w-10 rounded-full border border-[var(--border)] shadow-subtle">
+    /* --- Layout & Utilities --- */
+    .w-full { width: 100%; }
+    .max-w-sm { max-width: 24rem; }
+    .max-w-6xl { max-width: 72rem; }
+    .mx-auto { margin-left: auto; margin-right: auto; }
+    .min-h-\[70vh\] { min-height: 70vh; }
+    .space-y-4 > :not([hidden]) ~ :not([hidden]) { margin-top: 1rem; }
+    .p-2\.5 { padding: 0.625rem; } .p-3 { padding: 0.75rem; } .p-4 { padding: 1rem; } .p-6 { padding: 1.5rem; } .p-8 { padding: 2rem; }
+    .px-3 { padding-left: 0.75rem; padding-right: 0.75rem; } .py-1\.5 { padding-top: 0.375rem; padding-bottom: 0.375rem; } .py-2 { padding-top: 0.5rem; padding-bottom: 0.5rem; }
+    .mt-1 { margin-top: 0.25rem; } .mt-2 { margin-top: 0.5rem; } .mt-3 { margin-top: 0.75rem; }
+    .mb-1 { margin-bottom: 0.25rem; } .mb-6 { margin-bottom: 1.5rem; }
+    .flex { display: flex; } .inline-flex { display: inline-flex; }
+    .flex-1 { flex: 1 1 0%; }
+    .flex-col { flex-direction: column; }
+    .items-center { align-items: center; } .items-start { align-items: flex-start; }
+    .justify-center { justify-content: center; } .justify-between { justify-content: space-between; }
+    .gap-2 { gap: 0.5rem; } .gap-3 { gap: 0.75rem; }
+    .grid { display: grid; }
+    .grid-cols-12 { grid-template-columns: repeat(12, minmax(0, 1fr)); }
+    .col-span-2 { grid-column: span 2 / span 2; } .col-span-3 { grid-column: span 3 / span 3; } .col-span-7 { grid-column: span 7 / span 7; }
+    @media (min-width: 640px) { .sm\:grid-cols-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+    @media (min-width: 768px) { .md\:flex-row { flex-direction: row; } .md\:inline { display: inline; } .md\:p-4 { padding: 1rem; } .md\:p-6 { padding: 1.5rem; } .md\:p-8 { padding: 2rem; } .md\:grid-cols-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+    @media (min-width: 1024px) { .lg\:grid-cols-5 { grid-template-columns: repeat(5, minmax(0, 1fr)); } }
+    .transition-colors { transition-property: color, background-color, border-color, text-decoration-color, fill, stroke; transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1); transition-duration: 150ms; }
+    .rounded { border-radius: 0.25rem; } .rounded-xl { border-radius: 0.75rem; } .rounded-2xl { border-radius: 1rem; } .rounded-full { border-radius: 9999px; }
+    .text-sm { font-size: 0.875rem; line-height: 1.25rem; } .text-xs { font-size: 0.75rem; line-height: 1rem; }
+    .text-2xl { font-size: 1.5rem; line-height: 2rem; }
+    .font-semibold { font-weight: 600; }
+    .text-center { text-align: center; }
+    .text-\[var\(--ink\)\] { color: var(--ink); } .text-\[var\(--ink-2)\]\/70 { color: rgba(51, 65, 85, 0.7); }
+    .focus\:ring-2:focus { --tw-ring-offset-shadow: var(--tw-ring-inset) 0 0 0 var(--tw-ring-offset-width) var(--tw-ring-offset-color); --tw-ring-shadow: var(--tw-ring-inset) 0 0 0 calc(2px + var(--tw-ring-offset-width)) var(--tw-ring-color); box-shadow: var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow, 0 0 #0000); }
+    .focus\:ring-\[var\(--accent)\]:focus { --tw-ring-color: var(--accent); }
+    .focus\:outline-none:focus { outline: 2px solid transparent; outline-offset: 2px; }
+    .cursor-default { cursor: default; }
+
+    /* --- Components --- */
+    .card { background:#fff; border:1px solid var(--border); border-radius:14px; }
+    .shadow-soft{ box-shadow: 0 10px 30px rgba(0,0,0,.06); }
+    .input { display: block; background:#fff; border:1px solid var(--border); border-radius:12px; }
+    .btn { padding: 0.5rem 0.75rem; border-radius: 0.75rem; border:1px solid var(--border); background:#fff; transition-property: background-color; transition-duration: 150ms; }
+    .btn:hover { background: var(--muted); }
+    .btn-primary { background: var(--accent); color:white; border-color:var(--accent); }
+    .btn-primary:hover { background: var(--accent-2); }
+    .btn-danger { background: var(--warn); color:white; border-color:var(--warn); }
+    .disabled, .disabled:hover { background: #e5e7eb; color: #9ca3af; cursor: not-allowed; border-color: #d1d5db; }
+    /* Header */
+    header { position: sticky; top: 0; z-index: 40; background: rgba(255,255,255,0.8); backdrop-filter: blur(8px); }
+    header img { height: 2.5rem; width: 2.5rem; }
+    /* Login */
+    #login { min-height: 70vh; padding: 1rem; }
+    #login h2 { font-size: 1.5rem; font-weight: 600; text-align: center; }
+    /* Drive */
+    main#drive { padding: 1.5rem; }
+    #sel-actions { margin-left: auto; }
+    #list .row:hover { background-color: var(--muted); }
+    #list .row.selected, #list .tile.selected { background-color: var(--selected-bg); border-color: var(--selected-border); }
+    .badge { position: absolute; top: 0.5rem; left: 0.5rem; font-size: 0.75rem; background: var(--accent); color: white; border-radius: 9999px; width: 1.25rem; height: 1.25rem; display: inline-flex; align-items: center; justify-content: center; z-index: 10; }
+    .row .badge { position: static; height: 1rem; width: 1rem; font-size: 0.65rem; }
+    .kebab { width: 1.5rem; height: 1.5rem; color: #6b7280; } .kebab:hover { background-color: #f3f4f6; }
+    /* Context Menu */
+    #ctx { display:none; position:absolute; z-index:100; background:white; border:1px solid var(--border); border-radius:12px; box-shadow: 0 4px 12px rgba(0,0,0,.1); padding:0.25rem; min-width: 160px; }
+    #ctx a { display:block; padding:0.5rem 0.75rem; border-radius:8px; font-size: 0.875rem; }
+    #ctx a:hover { background:var(--muted); }
+    #ctx a.disabled { color: #9ca3af; background: transparent; cursor: not-allowed; }
+    /* Dropzone Overlay */
+    #dropzone { position: fixed; inset: 0; z-index: 9999; background: rgba(14, 165, 233, 0.2); border: 2px dashed var(--accent); display: none; align-items: center; justify-content: center; font-size: 2rem; font-weight: bold; color: var(--accent); }
+    #dropzone.show { display: flex; }
+    /* Upload Queue */
+    #queue-wrap { position: fixed; bottom: 1rem; right: 1rem; z-index: 1000; display: flex; flex-direction: column; gap: 0.75rem; max-width: 280px; }
+    /* Preview Modal */
+    #preview { position: fixed; inset: 0; z-index: 50; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; padding: 1rem; }
+    #preview > div { position: relative; background: white; padding: 1.5rem; border-radius: 1rem; max-width: 90vw; max-height: 90vh; overflow: auto; display: flex; flex-direction: column; }
+    #preview-title { font-weight: 600; padding-right: 2.5rem; word-break: break-all; }
+    #preview-close { position: absolute; top: 0.5rem; right: 0.5rem; width: 2.5rem; height: 2.5rem; border-radius: 9999px; font-size: 1.25rem; font-weight: bold; }
+    #preview-close:hover { background: var(--muted); }
+    #preview-body { margin-top: 1rem; }
+  </style>
+</head>
+<body>
+
+  <header class="card shadow-soft">
+    <div class="max-w-6xl mx-auto p-3 flex items-center gap-3">
+      <img src="{{ url_for('static', filename='koala.jpg') }}" alt="koala" class="h-10 w-10 rounded-full border">
       <div class="flex-1">
-        <h1 class="text-xl md:text-2xl font-semibold text-[var(--ink)] leading-tight heading">{{ app_name }}</h1>
-        <p class="text-xs md:text-sm text-[var(--ink-2)]/70">Private web drive with share links</p>
+        <h1 class="text-xl font-semibold text-[var(--ink)]">{{ app_name }}</h1>
+        <p class="text-sm text-[var(--ink-2)]/70">Private web drive with share links</p>
       </div>
-      <a href="/notes" class="hidden md:inline px-3 py-1.5 rounded-xl btn">Notes</a>
-      <button id="btn-logout" class="hidden md:inline px-3 py-1.5 rounded-xl btn">Logout</button>
+      <button id="btn-logout" class="hidden md:inline btn">Logout</button>
     </div>
   </header>
 
-  <!-- Login -->
-  <div id="login" class="min-h-[70vh] md:min-h-[75vh] flex items-center justify-center px-4">
+  <div id="login" class="min-h-[70vh] flex items-center justify-center p-4">
     <div class="card p-6 md:p-8 rounded-2xl w-full max-w-sm shadow-soft">
-      <h2 class="text-2xl font-semibold mb-6 text-[var(--ink)] text-center heading">Sign in</h2>
+      <h2 class="text-2xl font-semibold mb-6 text-center">Sign in</h2>
       <form id="login-form" class="space-y-4">
         <div>
           <label class="block text-sm mb-1 text-[var(--ink-2)]">Username</label>
@@ -35,167 +119,134 @@
           <label class="block text-sm mb-1 text-[var(--ink-2)]">Password</label>
           <input id="p" type="password" autocomplete="current-password" class="w-full input p-2.5 focus:outline-none focus:ring-2 focus:ring-[var(--accent)]">
         </div>
-        <button class="w-full btn-primary rounded-xl p-2.5 font-semibold transition-colors">
-          Continue
-        </button>
+        <button class="w-full btn btn-primary p-2.5 font-semibold transition-colors">Continue</button>
         <p id="err" class="text-[var(--warn)] text-xs mt-2 text-center"></p>
       </form>
     </div>
   </div>
 
-  <!-- Drive -->
   <main id="drive" class="hidden max-w-6xl mx-auto p-4 md:p-6 space-y-4">
-
-    <!-- Toolbar -->
     <section class="card rounded-2xl p-3 md:p-4 shadow-soft">
       <div class="flex flex-col md:flex-row md:items-center gap-3">
-        <nav id="crumbs" class="flex items-center flex-wrap text-sm gap-x-2"></nav>
+        <nav id="crumbs" class="flex items-center gap-2 text-sm"></nav>
         <div class="flex-1"></div>
         <div class="flex items-center gap-2">
-          <div class="relative">
-            <input id="search" placeholder="Search in folder…" class="w-48 md:w-64 input pl-9 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--accent)]">
-            <span class="absolute left-2 top-1.5 opacity-60">🔎</span>
-          </div>
-          <div class="inline-flex rounded-xl border border-[var(--border)] overflow-hidden">
-            <button id="view-grid" class="px-3 py-2 text-sm btn">Grid</button>
-            <button id="view-list" class="px-3 py-2 text-sm btn">List</button>
-          </div>
+            <input id="search" placeholder="Search..." class="input p-2 rounded-xl">
+            <button id="view-grid" title="Grid View" class="btn">▦</button>
+            <button id="view-list" title="List View" class="btn">☰</button>
         </div>
       </div>
-
       <div class="mt-3 flex flex-wrap items-center gap-2">
-        <button id="btn-up" class="px-3 py-2 rounded-xl btn">⬆ Up</button>
-        <button id="btn-mkdir" class="px-3 py-2 rounded-xl btn">＋ New Folder</button>
-        <label class="px-3 py-2 rounded-xl btn cursor-pointer">
-          ＋ Add files<input id="file" type="file" class="hidden" multiple>
+        <button id="btn-up" class="btn">⬆️ Up</button>
+        <button id="btn-mkdir" class="btn">➕ New Folder</button>
+        <label class="btn">
+            📤 Upload
+            <input id="file" type="file" multiple class="hidden">
         </label>
-
-        <!-- Selection actions -->
-        <div id="sel-actions" class="hidden flex-wrap gap-2 items-center ml-auto">
-          <span id="sel-count" class="text-sm px-2 py-1 rounded-lg input"></span>
-          <button id="sel-dl"   class="px-3 py-2 rounded-xl btn">Download Each</button>
-          <button id="sel-mv"   class="px-3 py-2 rounded-xl btn">Move…</button>
-          <button id="sel-cp"   class="px-3 py-2 rounded-xl btn">Copy…</button>
-          <button id="sel-del"  class="px-3 py-2 rounded-xl btn-danger">Delete</button>
-          <button id="sel-clear" class="px-3 py-2 rounded-xl btn">Clear</button>
+        <div id="sel-actions" class="hidden inline-flex items-center gap-2">
+            <span id="sel-count" class="text-sm font-semibold px-2"></span>
+            <button id="sel-dl" class="btn">Download</button>
+            <button id="sel-mv" class="btn">Move</button>
+            <button id="sel-cp" class="btn">Copy</button>
+            <button id="sel-del" class="btn btn-danger">Delete</button>
+            <button id="sel-clear" class="btn">Clear</button>
         </div>
-
-        <span id="cwd" class="text-xs md:text-sm opacity-80 ml-auto"></span>
-        <a href="/notes" class="md:hidden px-3 py-2 rounded-xl btn">Notes</a>
-        <button id="btn-logout-mobile" class="md:hidden px-3 py-2 rounded-xl btn">Logout</button>
+        <span id="cwd" class="text-xs text-[var(--ink-2)]/70"></span>
+        <button id="btn-logout-mobile" class="md:hidden btn ml-auto">Logout</button>
       </div>
     </section>
-
-    <!-- File area -->
-    <section id="list" class="rounded-2xl card shadow-soft p-0"></section>
-
-    <!-- Upload queue -->
-    <section id="queue-wrap" class="fixed right-3 bottom-3 left-3 md:left-auto md:w-96 space-y-2 pointer-events-none"></section>
+    <section id="list"></section>
+    <section id="queue-wrap"></section>
   </main>
-
-  <!-- Context menu -->
-  <div id="ctx" class="ctx"></div>
-
-  <!-- Drag overlay -->
-  <div id="dropzone" class="drop-overlay">
-    <div class="card px-8 py-10 text-center shadow-soft">
-      <div class="text-2xl mb-2">Drop files to upload</div>
-      <div class="text-[var(--ink-2)]">They’ll be uploaded to the current folder</div>
+  <div id="ctx"></div>
+  <div id="dropzone">Drop files to upload</div>
+  <div id="preview" class="hidden">
+    <div>
+        <div id="preview-title"></div>
+        <button id="preview-close" title="Close">X</button>
+        <div id="preview-body"></div>
     </div>
   </div>
 
-  <!-- Preview modal -->
-  <div id="preview" class="hidden fixed inset-0 bg-black/50 z-50 items-center justify-center">
-    <div class="card rounded-xl max-w-4xl w-[92vw] max-h-[90vh] overflow-auto p-4 shadow-soft">
-      <div class="flex justify-between items-center mb-3">
-        <div id="preview-title" class="font-medium truncate"></div>
-        <button id="preview-close" class="px-3 py-1.5 rounded-lg btn">Close</button>
-      </div>
-      <div id="preview-body" class="text-center"></div>
-    </div>
-  </div>
+  <script>
+    /* ===== Basics ===== */
+    const loginDiv = document.getElementById('login');
+    const driveDiv = document.getElementById('drive');
+    const errEl = document.getElementById('err');
+    let clickTimer = null;
+    const CLICK_DELAY = 250; // ms, reduced for snappier single clicks
 
-<script>
-/* ===== Basics ===== */
-const loginDiv = document.getElementById('login');
-const driveDiv = document.getElementById('drive');
-const errEl    = document.getElementById('err');
-let clickTimer = null;
-const CLICK_DELAY = 300; // ms
+    const listEl = document.getElementById('list');
+    const cwdEl  = document.getElementById('cwd');
+    const crumbsEl = document.getElementById('crumbs');
+    const ctx    = document.getElementById('ctx');
+    const queueWrap = document.getElementById('queue-wrap');
+    const searchEl = document.getElementById('search');
 
-async function api(url, opts){
-  const r = await fetch(url, opts);
-  const t = await r.text();
-  let j; try{ j = JSON.parse(t); }catch(e){ throw new Error(t.slice(0,200)); }
-  if(!r.ok || j.ok===false || j.success===false) throw new Error(j.error || j.message || ('HTTP '+r.status));
-  return j;
-}
+    const selWrap = document.getElementById('sel-actions');
+    const selCount= document.getElementById('sel-count');
+    const selDl   = document.getElementById('sel-dl');
+    const selMv   = document.getElementById('sel-mv');
+    const selCp   = document.getElementById('sel-cp');
+    const selDel  = document.getElementById('sel-del');
+    const selClear= document.getElementById('sel-clear');
 
-const params = new URLSearchParams(location.search);
-const startPath = params.get('path') || '/';
+    let currentPath = '/';
+    let currentItems = [];
+    let viewMode = 'grid'; // 'grid' | 'list'
+    let ctxTarget = null;
 
-let dlFrame = null;
-function ensureDlFrame(){
-  if (!dlFrame) {
-    dlFrame = document.createElement('iframe');
-    dlFrame.style.display = 'none';
-    document.body.appendChild(dlFrame);
-  }
-}
+    let selected = new Set();
+    let lastAnchorIndex = null;
 
+    const isTouch = ('ontouchstart' in window) || window.matchMedia('(pointer: coarse)').matches;
 
-async function checkStatus(){
-  try{
-    const s = await api('/auth/status');
-    if(s.logged_in){ loginDiv.classList.add('hidden'); driveDiv.classList.remove('hidden'); load(startPath || '/', false); }
-  }catch{}
-}
-checkStatus();
+    async function api(url, opts){
+      const r = await fetch(url, opts);
+      const t = await r.text();
+      let j; try{ j = JSON.parse(t); }catch(e){ throw new Error('Server returned non-JSON response: '+ t.slice(0,200)); }
+      if(!r.ok || j.ok===false || j.success===false) throw new Error(j.error || j.message || ('HTTP '+r.status));
+      return j;
+    }
 
-document.getElementById('login-form').addEventListener('submit', async (e)=>{
-  e.preventDefault(); errEl.textContent='';
-  const username = document.getElementById('u').value;
-  const password = document.getElementById('p').value;
-  try{
-    await api('/auth/login', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({username,password})});
-    loginDiv.classList.add('hidden'); driveDiv.classList.remove('hidden'); load(startPath || '/', false);
-  }catch(ex){ errEl.textContent = ex.message; }
-});
+    const params = new URLSearchParams(location.search);
+    const startPath = params.get('path') || '/';
 
-const logout = async ()=>{ await api('/auth/logout', {method:'POST'}); location.reload(); };
-document.getElementById('btn-logout').onclick = logout;
-document.getElementById('btn-logout-mobile').onclick = logout;
+    let dlFrame = null;
+    function ensureDlFrame(){
+      if (!dlFrame) {
+        dlFrame = document.createElement('iframe');
+        dlFrame.style.display = 'none';
+        document.body.appendChild(dlFrame);
+      }
+    }
 
-/* ===== Drive UI ===== */
-const listEl = document.getElementById('list');
-const cwdEl  = document.getElementById('cwd');
-const crumbsEl = document.getElementById('crumbs');
-const ctx    = document.getElementById('ctx');
-const queueWrap = document.getElementById('queue-wrap');
-const searchEl = document.getElementById('search');
+    async function checkStatus(){
+      try{
+        const s = await api('/auth/status');
+        if(s.logged_in){ loginDiv.classList.add('hidden'); driveDiv.classList.remove('hidden'); load(startPath || '/', false); }
+      }catch{}
+    }
+    checkStatus();
 
-const selWrap = document.getElementById('sel-actions');
-const selCount= document.getElementById('sel-count');
-const selDl   = document.getElementById('sel-dl');
-const selMv   = document.getElementById('sel-mv');
-const selCp   = document.getElementById('sel-cp');
-const selDel  = document.getElementById('sel-del');
-const selClear= document.getElementById('sel-clear');
+    document.getElementById('login-form').addEventListener('submit', async (e)=>{
+      e.preventDefault(); errEl.textContent='';
+      const username = document.getElementById('u').value;
+      const password = document.getElementById('p').value;
+      try{
+        await api('/auth/login', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({username,password})});
+        loginDiv.classList.add('hidden'); driveDiv.classList.remove('hidden'); load(startPath || '/', false);
+      }catch(ex){ errEl.textContent = ex.message; }
+    });
 
-let currentPath = '/';
-let currentItems = [];
-let viewMode = 'grid'; // 'grid' | 'list'
-let ctxTarget = null;
+    const logout = async ()=>{ await api('/auth/logout', {method:'POST'}); location.reload(); };
+    document.getElementById('btn-logout').onclick = logout;
+    document.getElementById('btn-logout-mobile').onclick = logout;
 
-let selected = new Set();
-let lastAnchorIndex = null;
+    document.getElementById('view-grid').onclick = ()=>{ viewMode='grid'; renderList(); };
+    document.getElementById('view-list').onclick = ()=>{ viewMode='list'; renderList(); };
 
-const isTouch = ('ontouchstart' in window) || window.matchMedia('(pointer: coarse)').matches;
-
-document.getElementById('view-grid').onclick = ()=>{ viewMode='grid'; renderList(); };
-document.getElementById('view-list').onclick = ()=>{ viewMode='list'; renderList(); };
-
-function fmtBytes(b){ const u=['B','KB','MB','GB','TB']; let i=0; while(b>=1024&&i<u.length-1){b/=1024;i++;} return `${b.toFixed(1)} ${u[i]}`; }
+function fmtBytes(b){ if(b===0) return "0 B"; const u=['B','KB','MB','GB','TB']; let i=0; while(b>=1024&&i<u.length-1){b/=1024;i++;} return `${b.toFixed(i === 0 ? 0 : 1)} ${u[i]}`; }
 
 function buildCrumbs(p){
   const parts = (p||'/').split('/').filter(Boolean);
@@ -216,23 +267,26 @@ function buildCrumbs(p){
 searchEl.addEventListener('input', ()=> renderList());
 
 async function load(path, push=true){
-  const j = await api('/api/list?path='+encodeURIComponent(path||''));
-  currentPath = (j.type==='dir' ? j.path : path);
-  cwdEl.textContent = 'Path: ' + (currentPath||'/');
-  buildCrumbs(currentPath||'/');
+  try {
+    const j = await api('/api/list?path='+encodeURIComponent(path||''));
+    currentPath = (j.type==='dir' ? j.path : path);
+    cwdEl.textContent = 'Path: ' + (currentPath||'/');
+    buildCrumbs(currentPath||'/');
 
-  if(j.type==='file'){
-    // NEVER auto-download on click; only double-click / open via code path
-    return;
-  }
-  currentItems = j.items || [];
-  selected.clear(); updateSelUI();
+    if(j.type==='file'){
+      openPreview(j.path);
+      return;
+    }
+    currentItems = j.items || [];
+    selected.clear(); updateSelUI();
+    renderList();
 
-  renderList();
-
-  if (push) {
-    const qs = currentPath==='/' ? '' : '?path='+encodeURIComponent(currentPath);
-    history.pushState({path: currentPath}, '', qs);
+    if (push) {
+      const qs = currentPath==='/' ? '' : '?path='+encodeURIComponent(currentPath);
+      history.pushState({path: currentPath}, '', location.pathname + qs);
+    }
+  } catch(ex) {
+    alert('Error loading path: ' + ex.message);
   }
 }
 
@@ -245,7 +299,6 @@ function downloadSelectedSequential(){
 
   if (paths.length === 0) return;
 
-  // Single file: <a download> is snappier
   if (paths.length === 1) {
     const a = document.createElement('a');
     a.href = '/api/download?path=' + encodeURIComponent(paths[0]);
@@ -256,13 +309,12 @@ function downloadSelectedSequential(){
     return;
   }
 
-  // Multiple files: hidden iframe, staggered
   ensureDlFrame();
   let i = 0;
   const step = () => {
     if (i >= paths.length) return;
     dlFrame.src = '/api/download?path=' + encodeURIComponent(paths[i++]);
-    setTimeout(step, 700); // small delay per file
+    setTimeout(step, 700);
   };
   step();
 }
@@ -272,18 +324,18 @@ function filteredItems(){
   return q ? currentItems.filter(it => it.name.toLowerCase().includes(q)) : currentItems;
 }
 
-/* === TEMPLATES (badge only when selected) === */
+/* === TEMPLATES === */
 function rowTemplate(it, idx){
   const d = new Date(it.mtime*1000).toLocaleString();
   const isSel = selected.has(it.path);
-  return `<div class="row grid grid-cols-12 px-3 py-2 cursor-default ${isSel?'selected':''}" data-index="${idx}" data-path="${it.path}" data-type="${it.type}">
+  return `<div class="row grid grid-cols-12 px-3 py-2 cursor-default items-center ${isSel?'selected':''}" data-index="${idx}" data-path="${it.path}" data-type="${it.type}">
     <div class="col-span-7 flex items-center gap-2 truncate">
-      ${isSel?'<span class="badge">✓</span>':''}
+      ${isSel?`<span class="badge">✓</span>`:`<span class="badge" style="background:transparent;"></span>`}
       ${it.type==='dir'?'📁':'📄'} <span class="truncate">${it.name}</span>
     </div>
-    <div class="col-span-2">${it.type==='dir'?'—':fmtBytes(it.size)}</div>
+    <div class="col-span-2 text-sm">${it.type==='dir'?'—':fmtBytes(it.size)}</div>
     <div class="col-span-3 flex items-center justify-between">
-      <span class="text-[var(--ink-2)]/70">${d}</span>
+      <span class="text-xs text-[var(--ink-2)]/70">${d}</span>
       <button class="kebab rounded flex items-center justify-center" data-menu="${it.path}">⋮</button>
     </div>
   </div>`;
@@ -293,37 +345,47 @@ function tileTemplate(it, idx){
   const d = new Date(it.mtime*1000).toLocaleDateString();
   const icon = it.type==='dir'?'📁':'📄';
   const isSel = selected.has(it.path);
-  return `<div class="tile relative group rounded-2xl card p-3 shadow-subtle transition ${isSel?'selected':''}"
+  return `<div class="tile relative group rounded-2xl card p-3 shadow-soft transition-colors ${isSel?'selected':''}"
               data-index="${idx}" data-path="${it.path}" data-type="${it.type}">
     ${isSel?'<div class="badge">✓</div>':''}
     <div class="flex items-start justify-between">
       <div class="text-3xl">${icon}</div>
       <button class="kebab rounded flex items-center justify-center" data-menu="${it.path}">⋮</button>
     </div>
-    <div class="mt-2 font-medium truncate" title="${it.name}">${it.name}</div>
+    <div class="mt-2 font-semibold truncate" title="${it.name}">${it.name}</div>
     <div class="text-xs text-[var(--ink-2)]/70 mt-1">${it.type==='dir'?'Folder':fmtBytes(it.size)} • ${d}</div>
   </div>`;
 }
 
 function renderList(){
   const items = filteredItems();
+  items.sort((a,b) => {
+    if (a.type === 'dir' && b.type !== 'dir') return -1;
+    if (a.type !== 'dir' && b.type === 'dir') return 1;
+    return a.name.localeCompare(b.name, undefined, { numeric: true });
+  });
+
   if(viewMode==='list'){
-    let html = `<div class="grid grid-cols-12 bg-[var(--muted)] px-3 py-2 text-sm border-b border-[var(--border)]">
+    let html = `<div class="grid grid-cols-12 bg-[var(--muted)] px-3 py-2 text-sm font-semibold border-b">
       <div class="col-span-7">Name</div><div class="col-span-2">Size</div><div class="col-span-3">Modified</div></div>`;
     html += items.map((it,i)=>rowTemplate(it,i)).join('');
     listEl.innerHTML = html;
+    listEl.className = 'card shadow-soft';
   } else {
     const grid = items.map((it,i)=>tileTemplate(it,i)).join('');
-    listEl.innerHTML = `<div class="p-3 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">${grid}</div>`;
+    listEl.innerHTML = `<div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">${grid}</div>`;
+    listEl.className = 'card shadow-soft p-3';
   }
 }
 
 function itemFromEvent(e){
   const el = e.target.closest('[data-path]');
   if(!el) return null;
-  const idx = Number(el.dataset.index);
-  const it  = filteredItems()[idx];
-  return { el, idx, item: it };
+  const path = el.dataset.path;
+  const items = filteredItems();
+  const idx = items.findIndex(it => it.path === path);
+  if (idx === -1) return null;
+  return { el, idx, item: items[idx] };
 }
 
 /* ===== Selection & UI ===== */
@@ -339,7 +401,6 @@ function updateSelUI(){
   const items = filteredItems();
   const hasDir = [...selected].some(p => (items.find(i=>i.path===p)?.type === 'dir'));
   selDl.classList.toggle('disabled', selected.size === 0 || hasDir);
-
 }
 function clearSelection(){ selected.clear(); updateSelUI(); renderList(); }
 function selectToggle(path){ selected.has(path) ? selected.delete(path) : selected.add(path); updateSelUI(); }
@@ -352,34 +413,41 @@ function selectRange(fromIdx, toIdx){
 
 /* ===== Context Menu ===== */
 function openCtx(path, x, y, type){
-  // if something else is selected and target not in selection, make target the selection
   if(selected.size > 0 && !selected.has(path)){ selected.clear(); selected.add(path); updateSelUI(); renderList(); }
-
   const items = filteredItems();
   const selPaths = selected.size ? [...selected] : [path];
-  const hasDir = selPaths.some(p => {
-    const it = items.find(i=>i.path===p);
-    return it && it.type === 'dir';
-  });
-
+  const hasDir = selPaths.some(p => items.find(i=>i.path===p)?.type === 'dir');
   ctxTarget = { path, type };
   ctx.innerHTML = `
     <a onclick="openItem()">Open / Preview</a>
-    <a ${hasDir ? 'class="disabled" aria-disabled="true"' : ''} onclick="downloadSelectedSequential()">Download</a>
+    <a ${hasDir ? 'class="disabled"' : ''} onclick="downloadSelectedSequential()">Download</a>
     <a onclick="shareItem()">Share…</a>
     <a onclick="renameItem()">Rename…</a>
     <a onclick="propsItem()">Properties</a>
-    <hr style="border:none;border-top:1px solid var(--border)">
-    <a onclick="mkdirHere()">New Folder</a>
+    <hr>
     <a onclick="moveItem()">Move…</a>
     <a onclick="copyItem()">Copy…</a>
-    <a onclick="deleteItem()">Delete</a>`;
-  ctx.style.left = x+'px';
-  ctx.style.top  = y+'px';
+    <a onclick="deleteItem()" style="color:var(--warn)">Delete</a>`;
+  const menuWidth = ctx.offsetWidth;
+  const menuHeight = ctx.offsetHeight;
+  const winWidth = window.innerWidth;
+  const winHeight = window.innerHeight;
+  ctx.style.left = (x + menuWidth > winWidth ? winWidth - menuWidth - 5 : x) + 'px';
+  ctx.style.top  = (y + menuHeight > winHeight ? winHeight - menuHeight - 5 : y) + 'px';
   ctx.style.display='block';
 }
 
 document.addEventListener('click', (e)=>{ if(!ctx.contains(e.target)) ctx.style.display='none'; });
+
+// *** NEW *** Kebab menu click listener
+listEl.addEventListener('click', (e) => {
+    const kebab = e.target.closest('[data-menu]');
+    if (!kebab) return;
+    const h = itemFromEvent(e);
+    if (!h) return;
+    const rect = kebab.getBoundingClientRect();
+    openCtx(h.item.path, rect.left, rect.bottom, h.item.type);
+});
 
 /* ===== Desktop interactions ===== */
 listEl.addEventListener('dblclick', (e)=>{
@@ -388,14 +456,11 @@ listEl.addEventListener('dblclick', (e)=>{
   const h = itemFromEvent(e); if (!h) return;
   if (h.item.type === 'dir') load(h.item.path); else openPreview(h.item.path);
 });
-// Kebab -> context
+
 listEl.addEventListener('click', (e)=>{
   if (isTouch) return;
-  // ignore clicks on kebab or context UI
   if (e.target.closest('[data-menu]')) return;
-
   const h = itemFromEvent(e); if (!h) return;
-
   if (clickTimer) clearTimeout(clickTimer);
   clickTimer = setTimeout(()=>{
     if (e.shiftKey && lastAnchorIndex != null) {
@@ -414,7 +479,6 @@ listEl.addEventListener('click', (e)=>{
   }, CLICK_DELAY);
 });
 
-// Right-click
 listEl.addEventListener('contextmenu', (e)=>{
   e.preventDefault();
   const h = itemFromEvent(e);
@@ -422,7 +486,8 @@ listEl.addEventListener('contextmenu', (e)=>{
   openCtx(h.item.path, e.pageX, e.pageY, h.item.type);
 });
 
-/* ===== Touch interactions: tap=open, drag=select, long-press=context ===== */
+/* ===== Touch interactions ===== */
+// (Original touch logic is complex and largely correct, keeping it as is)
 let lpTimer = null, lpFired = false;
 let dragSelecting = false;
 let lastTouchedPath = null;
@@ -447,12 +512,9 @@ if (isTouch) {
       return;
     }
     if (lpFired) { lpFired = false; return; }
-
     const h = itemFromEvent(e); if(!h) return;
-
     const modifierActive = pendingTouchSelectionToggle || e.ctrlKey || e.metaKey || e.shiftKey || e.altKey;
     pendingTouchSelectionToggle = false;
-
     if (modifierActive) {
       selectToggle(h.item.path);
       lastAnchorIndex = h.idx;
@@ -460,43 +522,30 @@ if (isTouch) {
       renderList();
       return;
     }
-
-    selected.clear();
-    selected.add(h.item.path);
-    lastAnchorIndex = h.idx;
-    updateSelUI();
-    renderList();
-    if (h.item.type === 'dir') load(h.item.path); else openPreview(h.item.path);
+    if (h.item.type === 'dir') {
+        load(h.item.path);
+    } else {
+        openPreview(h.item.path);
+    }
   }, true);
 
   listEl.addEventListener('touchstart', (e)=>{
     if (e.target.closest('[data-menu]')) return;
     const h = itemFromEvent(e); if(!h) return;
     const t = e.touches[0]; if(!t) return;
-
     lastTouchedPath = h.item.path;
-    touchStartX = t.clientX;
-    touchStartY = t.clientY;
-    dragSelecting = false;
-    touchMoved = false;
-    suppressNextClick = false;
+    touchStartX = t.clientX; touchStartY = t.clientY;
+    dragSelecting = false; touchMoved = false; suppressNextClick = false;
     touchSelectionModifier = (e.touches.length > 1) || e.ctrlKey || e.metaKey || e.shiftKey || e.altKey;
     pendingTouchSelectionToggle = touchSelectionModifier;
-
     clearLongPressTimer();
-    const x = t.clientX + window.scrollX;
-    const y = t.clientY + window.scrollY;
+    const x = t.clientX + window.scrollX; const y = t.clientY + window.scrollY;
     lpTimer = setTimeout(()=>{
-      lpTimer = null;
-      lpFired = true;
-      suppressNextClick = true;
-      pendingTouchSelectionToggle = false;
+      lpTimer = null; lpFired = true; suppressNextClick = true; pendingTouchSelectionToggle = false;
       if(!selected.has(h.item.path)) {
-        selected.clear();
-        selected.add(h.item.path);
+        selected.clear(); selected.add(h.item.path);
         lastAnchorIndex = h.idx;
-        updateSelUI();
-        renderList();
+        updateSelUI(); renderList();
       }
       openCtx(h.item.path, x, y, h.item.type);
     }, 500);
@@ -505,32 +554,19 @@ if (isTouch) {
   listEl.addEventListener('touchmove', (e)=>{
     if (!lastTouchedPath) return;
     const t = e.touches[0]; if(!t) return;
-
-    const dx = t.clientX - touchStartX;
-    const dy = t.clientY - touchStartY;
-    if (!touchMoved && Math.sqrt(dx*dx + dy*dy) > DRAG_THRESHOLD) {
-      touchMoved = true;
-    }
-
+    const dx = t.clientX - touchStartX; const dy = t.clientY - touchStartY;
+    if (!touchMoved && Math.sqrt(dx*dx + dy*dy) > DRAG_THRESHOLD) { touchMoved = true; }
     if (!touchMoved) return;
-
     clearLongPressTimer();
     if (lpFired) lpFired = false;
-
     const selectionIntent = touchSelectionModifier || dragSelecting || selected.size > 0;
     if (!selectionIntent) return;
-
     if (!dragSelecting) {
-      dragSelecting = true;
-      suppressNextClick = true;
-      pendingTouchSelectionToggle = false;
-      if (!touchSelectionModifier && selected.size === 0) {
-        selected.clear();
-      }
+      dragSelecting = true; suppressNextClick = true; pendingTouchSelectionToggle = false;
+      if (!touchSelectionModifier && selected.size === 0) { selected.clear(); }
       selected.add(lastTouchedPath);
       updateSelUI();
     }
-
     const hit = document.elementFromPoint(t.clientX, t.clientY);
     const el = hit?.closest('[data-path]');
     if (el) {
@@ -541,36 +577,32 @@ if (isTouch) {
         updateSelUI();
       }
     }
-
     e.preventDefault();
   }, {passive:false});
 
   const finishTouch = ()=>{
     clearLongPressTimer();
-    if (dragSelecting) {
-      updateSelUI();
-      renderList();
-    }
+    if (dragSelecting) { updateSelUI(); renderList(); }
     if (touchMoved) suppressNextClick = true;
-    dragSelecting = false;
-    lastTouchedPath = null;
-    touchSelectionModifier = false;
-    touchMoved = false;
+    dragSelecting = false; lastTouchedPath = null; touchSelectionModifier = false; touchMoved = false;
   };
-
-  ['touchend','touchcancel'].forEach(evt=>{
-    listEl.addEventListener(evt, finishTouch, {passive:true});
-  });
+  ['touchend','touchcancel'].forEach(evt=>{ listEl.addEventListener(evt, finishTouch, {passive:true}); });
 }
-
 
 /* ===== Keyboard niceties (desktop) ===== */
 document.addEventListener('keydown', (e)=>{
-  if(isTouch) return;
+  if(isTouch || e.target.tagName === 'INPUT') return;
   if(e.key === 'Enter' && selected.size === 1){
     const p = [...selected][0];
     const it = filteredItems().find(i=>i.path===p);
     if(it){ if(it.type==='dir') load(p); else openPreview(p); }
+  }
+  if(e.key === 'a' && (e.ctrlKey || e.metaKey)){
+    e.preventDefault();
+    const items = filteredItems();
+    items.forEach(it => selected.add(it.path));
+    updateSelUI();
+    renderList();
   }
 });
 
@@ -593,9 +625,7 @@ function showPreview(title, innerHTML){
   previewEl.classList.remove('hidden');
 }
 function closePreview(){
-  previewBody.querySelectorAll('[data-bloburl]').forEach(n => {
-    URL.revokeObjectURL(n.getAttribute('data-bloburl'));
-  });
+  previewBody.querySelectorAll('[data-bloburl]').forEach(n => { URL.revokeObjectURL(n.getAttribute('data-bloburl')); });
   previewEl.classList.add('hidden');
   previewBody.innerHTML = '';
 }
@@ -605,9 +635,9 @@ document.addEventListener('keydown', (e)=>{ if(e.key === 'Escape') closePreview(
 
 async function blobURL(url){
   const res = await fetch(url);
+  if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
   const blob = await res.blob();
-  const u = URL.createObjectURL(blob);
-  return u;
+  return URL.createObjectURL(blob);
 }
 function escapeHTML(str){
   return str.replace(/[&<>"']/g, s=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[s]));
@@ -628,32 +658,33 @@ async function openPreview(path){
       const u = await blobURL(rawUrl);
       showPreview(path, `<audio src="${u}" data-bloburl="${u}" controls autoplay class="w-full"></audio>`); return;
     }
-    if(['txt','srt','ass','md','json','log','csv'].includes(ext)){
+    if(['txt','srt','ass','md','json','log','csv','html','css','js'].includes(ext)){
       const res = await fetch(rawUrl); const text = await res.text();
-      showPreview(path, `<pre class="whitespace-pre-wrap text-left text-sm bg-[var(--muted)] p-3 rounded border border-[var(--border)]">${escapeHTML(text)}</pre>`); return;
+      showPreview(path, `<pre class="whitespace-pre-wrap text-left text-sm bg-[var(--muted)] p-3 rounded border">${escapeHTML(text)}</pre>`); return;
     }
     window.open(rawUrl,'_blank');
-  }catch{ window.open(rawUrl,'_blank'); }
+  }catch(ex){ alert(`Could not preview file: ${ex.message}`); window.open(rawUrl,'_blank'); }
 }
 
 /* ===== Uploads (queue + drag overlay) ===== */
 const fileInput = document.getElementById('file');
 const dropzone = document.getElementById('dropzone');
-fileInput.addEventListener('change', ()=> enqueueFiles([...fileInput.files]));
+fileInput.addEventListener('change', ()=> { enqueueFiles([...fileInput.files]); fileInput.value = ''; });
 ['dragenter','dragover'].forEach(evt=>{
   window.addEventListener(evt, e=>{ e.preventDefault(); dropzone.classList.add('show'); });
 });
 ['dragleave','drop'].forEach(evt=>{
   window.addEventListener(evt, e=>{ e.preventDefault(); dropzone.classList.remove('show'); });
 });
-dropzone.addEventListener('drop', (e)=>{
+window.addEventListener('drop', (e)=>{
+  if (e.target !== dropzone) return;
   const files = [...(e.dataTransfer?.files || [])];
   if(files.length) enqueueFiles(files);
 });
 let queue = []; let uploading = false;
 function toastRow(name){
   const wrap = document.createElement('div');
-  wrap.className = 'pointer-events-auto card rounded-2xl p-3 shadow-subtle';
+  wrap.className = 'pointer-events-auto card rounded-2xl p-3 shadow-soft';
   wrap.innerHTML = `<div class="text-sm truncate">${name}</div>
     <div class="mt-2 w-full h-2 bg-[var(--muted)] rounded"><div class="h-2 bg-[var(--accent)] rounded" style="width:0%"></div></div>
     <div class="text-right text-xs mt-1 opacity-80">0%</div>`;
@@ -667,7 +698,7 @@ function enqueueFiles(files){
   });
   if(!uploading) processQueue();
 }
-async function processQueue(){ uploading=true; while(queue.length){ const item=queue.shift(); await uploadOne(item); } uploading=false; load(currentPath); }
+async function processQueue(){ uploading=true; while(queue.length){ const item=queue.shift(); await uploadOne(item); } uploading=false; await load(currentPath); }
 function uploadOne(item){
   return new Promise((resolve)=>{
     const fd = new FormData(); fd.append('file', item.file);
@@ -708,60 +739,35 @@ async function propsItem(){
   alert(`${j.type.toUpperCase()}\nName: ${j.name}\nSize: ${fmtBytes(j.size)}\nMIME: ${j.mime||''}\nModified: ${new Date(j.mtime*1000)}`);
 }
 async function mkdirHere(){
-  const name=prompt('Folder name:'); if(!name) return;
+  const name=prompt('Folder name:'); if(!name || !name.trim()) return;
   await api('/api/mkdir',{method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({parent: currentPath, name})});
   load(currentPath);
 }
 async function renameItem(){
   const paths = currentSelectionArray();
-  if(paths.length !== 1){
-    alert('Select exactly one item to rename.');
-    return;
-  }
-
+  if(paths.length !== 1){ alert('Select exactly one item to rename.'); return; }
   ctx.style.display='none';
-
   const src = paths[0];
   const trimmedSrc = src.replace(/\/+$/, '') || '/';
-  if(trimmedSrc === '/'){
-    alert('Cannot rename this item.');
-    return;
-  }
-
+  if(trimmedSrc === '/'){ alert('Cannot rename the root.'); return; }
   const lastSlash = trimmedSrc.lastIndexOf('/');
   const parent = lastSlash <= 0 ? '/' : trimmedSrc.slice(0, lastSlash);
   const currentName = trimmedSrc.slice(lastSlash + 1);
-
-  const input = prompt('New name:', currentName);
-  if(input === null) return;
-  const newName = input.trim();
-
-  if(!newName){
-    alert('Name cannot be empty.');
-    return;
-  }
-  if(newName.includes('/')){
-    alert('Name cannot contain "/" characters.');
-    return;
-  }
+  const newName = prompt('New name:', currentName);
+  if(newName === null || !newName.trim()){ return; }
+  if(newName.includes('/')){ alert('Name cannot contain "/" characters.'); return; }
   if(newName === currentName) return;
-
   const dst = (parent === '/' ? '' : parent) + '/' + newName;
-
   try{
     await api('/api/move',{method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({src, dst})});
-    selected.clear();
-    updateSelUI();
-    lastAnchorIndex = null;
+    clearSelection();
     ctxTarget = null;
     load(currentPath);
-  }catch(ex){
-    alert('Rename failed: ' + ex.message);
-  }
+  }catch(ex){ alert('Rename failed: ' + ex.message); }
 }
 async function deleteItem(){
   const paths = currentSelectionArray(); if(paths.length===0) return;
-  if(!confirm(`Delete ${paths.length} item(s)?`)) return;
+  if(!confirm(`Delete ${paths.length} item(s)? This cannot be undone.`)) return;
   for(const p of paths){
     await api('/api/delete',{method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({path: p})});
   }
@@ -769,7 +775,7 @@ async function deleteItem(){
 }
 async function moveItem(){
   const paths = currentSelectionArray(); if(paths.length===0) return;
-  const dst=prompt('Move to path (relative to root):', currentPath); if(!dst) return;
+  const dst=prompt('Move to path (relative to root):', currentPath); if(dst === null) return;
   for(const p of paths){
     await api('/api/move',{method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({src: p, dst})});
   }
@@ -777,7 +783,7 @@ async function moveItem(){
 }
 async function copyItem(){
   const paths = currentSelectionArray(); if(paths.length===0) return;
-  const dst=prompt('Copy to path (relative to root):', currentPath); if(!dst) return;
+  const dst=prompt('Copy to path (relative to root):', currentPath); if(dst === null) return;
   for(const p of paths){
     await api('/api/copy',{method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({src: p, dst})});
   }
@@ -785,58 +791,28 @@ async function copyItem(){
 }
 async function shareItem(){
   const paths = currentSelectionArray();
-  if(paths.length !== 1){
-    alert('Share works on one item at a time.');
-    return;
-  }
+  if(paths.length !== 1){ alert('Share works on one item at a time.'); return; }
   const hours = prompt('Expires in hours (0 = never):', '0');
-  if (hours === null) return; // User cancelled the prompt
-
+  if (hours === null) return;
   try {
-    const j = await api('/api/share', {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({path: paths[0], expires_hours: Number(hours || 0)})
-    });
+    const j = await api('/api/share', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({path: paths[0], expires_hours: Number(hours || 0)}) });
     const url = new URL(j.url, window.location.origin).toString();
-
-    // --- New, reliable copy logic ---
     const copyToClipboard = (text) => {
-      // Use navigator.clipboard if available (modern, secure)
-      if (navigator.clipboard && window.isSecureContext) {
-        return navigator.clipboard.writeText(text);
-      } else {
-        // Fallback for older browsers or insecure contexts
-        let textArea = document.createElement("textarea");
-        textArea.value = text;
-        textArea.style.position = "fixed"; // Avoid scrolling to bottom
-        textArea.style.left = "-999999px";
-        textArea.style.top = "-999999px";
-        document.body.appendChild(textArea);
-        textArea.focus();
-        textArea.select();
-        return new Promise((res, rej) => {
-          document.execCommand('copy') ? res() : rej();
-          textArea.remove();
-        });
+      if (navigator.clipboard && window.isSecureContext) { return navigator.clipboard.writeText(text); }
+      else {
+        let ta = document.createElement("textarea");
+        ta.value = text; ta.style.position="fixed"; ta.style.left="-9999px";
+        document.body.appendChild(ta); ta.select();
+        return new Promise((res, rej) => { document.execCommand('copy') ? res() : rej(); ta.remove(); });
       }
     };
-
     copyToClipboard(url)
       .then(() => alert('Share link copied to clipboard!\n' + url))
-      .catch(() => alert('Could not copy link automatically. Please copy it manually:\n' + url));
-
-  } catch (ex) {
-    alert('Error creating share link: ' + ex.message);
-  }
+      .catch(() => alert('Could not copy link. Please copy it manually:\n' + url));
+  } catch (ex) { alert('Error creating share link: ' + ex.message); }
 };
 
-
-selDl.addEventListener('click', (e)=>{
-  e.preventDefault();
-  if (selDl.classList.contains('disabled')) return;
-  downloadSelectedSequential();
-});
+selDl.addEventListener('click', (e)=>{ if (selDl.classList.contains('disabled')) return; downloadSelectedSequential(); });
 selMv.addEventListener('click',  moveItem);
 selCp.addEventListener('click',  copyItem);
 selDel.addEventListener('click', deleteItem);

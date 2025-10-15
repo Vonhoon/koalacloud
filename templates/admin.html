@@ -1,134 +1,239 @@
 <!doctype html>
 <html>
 <head>
-  <meta charset="utf-t" />
+  <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>{{ app_name }} — Admin</title>
-  <link href="{{ url_for('static', filename='output.css') }}" rel="stylesheet">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
   <style>
-    /* Use a system font stack for a native feel, similar to Apple's design philosophy */
+    /* A simple, text-focused, and functional stylesheet */
     body {
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      font-family: Consolas, Monaco, "Andale Mono", "Ubuntu Mono", monospace;
+      background-color: #f5f5f5;
+      color: #111;
+      margin: 0;
+      padding: 1em;
     }
+
+    /* Layout */
+    h1, h2, h3 { margin: 1em 0 0.5em 0; }
+    hr { border: none; border-top: 1px solid #ccc; margin: 2em 0; }
+    fieldset {
+      border: 1px solid #ccc;
+      padding: 1em;
+      margin-bottom: 1em;
+    }
+    legend {
+      font-weight: bold;
+      padding: 0 0.5em;
+    }
+    .hidden { display: none !important; }
+    .container {
+      max-width: 900px;
+      margin: 0 auto;
+      background-color: #fff;
+      border: 1px solid #ccc;
+      padding: 1em 2em;
+    }
+
+    /* Forms & Buttons */
+    input[type="text"], input[type="password"] {
+      padding: 8px;
+      border: 1px solid #ccc;
+      width: 250px;
+      margin-bottom: 1em;
+    }
+    button {
+      padding: 8px 15px;
+      border: 1px solid #555;
+      background-color: #e0e0e0;
+      cursor: pointer;
+    }
+    button:hover { background-color: #d0d0d0; }
+    button.primary {
+      background-color: #337ab7;
+      color: white;
+      border-color: #2e6da4;
+    }
+    button.primary:hover { background-color: #286090; }
+    button.danger {
+        background-color: #f0f0f0;
+        color: #d9534f;
+        border-color: #ccc;
+    }
+    button.danger:hover { background-color: #d9534f; color: white; }
+
+    /* Login Screen */
+    #login { text-align: center; padding-top: 5vh; }
+    #login form {
+      display: inline-block;
+      text-align: left;
+      border: 1px solid #ccc;
+      padding: 2em;
+      background-color: #fff;
+    }
+    #err { color: #d9534f; margin-top: 1em; }
+
+    /* Dashboard Specific */
+    .progress-bar {
+      border: 1px solid #999;
+      height: 16px;
+      padding: 1px;
+    }
+    .progress-bar-fill {
+      background-color: #555;
+      height: 100%;
+    }
+    #logs-content {
+      background-color: #1e1e1e;
+      color: #d4d4d4;
+      padding: 1em;
+      font-size: 0.85em;
+      height: 300px;
+      overflow-auto;
+      white-space: pre-wrap;
+      border: 1px solid #ccc;
+    }
+    .torrent-item, .history-item, .network-item, .service-item, .storage-item, .temp-item {
+      border: 1px solid #e0e0e0;
+      padding: 0.75em;
+      margin-bottom: 0.5em;
+    }
+
+    /* Browse Modal */
+    #browse-modal {
+      position: fixed;
+      inset: 0;
+      background-color: rgba(0, 0, 0, 0.7);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    #browse-modal > div {
+      background-color: #fff;
+      padding: 1.5em;
+      border: 1px solid #333;
+      width: 90%;
+      max-width: 600px;
+    }
+    #browse-list {
+      max-height: 300px;
+      overflow-y: auto;
+      border: 1px solid #ccc;
+      padding: 0.5em;
+      margin: 1em 0;
+    }
+    #browse-list ul { list-style-type: none; padding: 0; margin: 0; }
+    #browse-list li { padding: 5px; cursor: pointer; }
+    #browse-list li:hover { background-color: #f0f0f0; }
   </style>
 </head>
-<body class="bg-gray-100 text-gray-800 antialiased">
-  <div id="login" class="min-h-screen flex items-center justify-center p-4">
-    <div class="bg-white/80 backdrop-blur-xl p-8 rounded-xl shadow-lg w-full max-w-sm">
-      <h2 class="text-2xl font-bold mb-6 text-center text-gray-700">Admin Login</h2>
-      <form id="login-form">
-        <label class="block text-sm font-medium text-gray-600 mb-1">Username</label>
-        <input id="u" class="bg-gray-200/50 border border-gray-300 rounded-md w-full py-2 px-3 mb-4 focus:outline-none focus:ring-2 focus:ring-blue-500" required>
-        <label class="block text-sm font-medium text-gray-600 mb-1">Password</label>
-        <input id="p" type="password" class="bg-gray-200/50 border border-gray-300 rounded-md w-full py-2 px-3 mb-4 focus:outline-none focus:ring-2 focus:ring-blue-500" required>
-        <button class="w-full bg-blue-500 hover:bg-blue-600 text-white font-semibold rounded-md py-2.5 transition-colors">Login</button>
-        <p id="err" class="text-red-500 text-sm text-center mt-4"></p>
-      </form>
-    </div>
+<body>
+
+  <div id="login">
+    <h2>Admin Login</h2>
+    <form id="login-form">
+      <label for="u">Username</label><br>
+      <input id="u" required><br>
+      <label for="p">Password</label><br>
+      <input id="p" type="password" required><br>
+      <button type="submit" class="primary">Login</button>
+      <p id="err"></p>
+    </form>
   </div>
 
-  <div id="dash" class="hidden max-w-7xl mx-auto p-4 sm:p-6">
-    <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
-      <h1 class="text-3xl font-bold text-gray-800">{{ app_name }} — Admin</h1>
-      <button id="btn-logout" class="px-4 py-2 text-sm font-medium rounded-lg bg-white border border-gray-300 hover:bg-gray-100 transition-colors">Logout</button>
+  <div id="dash" class="hidden container">
+    <div style="display: flex; justify-content: space-between; align-items: center;">
+        <h1>{{ app_name }} — Admin</h1>
+        <button id="btn-logout">Logout</button>
     </div>
+    <hr>
 
-    <div class="grid gap-4 sm:gap-6 lg:grid-cols-3">
-      <div class="bg-white p-4 sm:p-5 rounded-xl shadow-sm lg:col-span-1">
-        <h2 class="text-xl font-semibold mb-4">Services</h2>
-        <div id="svc" class="space-y-4"></div>
-      </div>
-
-      <div class="bg-white p-4 sm:p-5 rounded-xl shadow-sm lg:col-span-1">
-        <h2 class="text-xl font-semibold mb-4">Hardware</h2>
-        <div class="space-y-4">
-          <div>
-            <div class="flex justify-between text-sm mb-1"><span>CPU</span><span id="cpu">0%</span></div>
-            <div class="w-full bg-gray-200 rounded-full h-2"><div id="cpuBar" class="bg-blue-500 h-2 rounded-full" style="width:0%"></div></div>
-          </div>
-          <div>
-            <div class="flex justify-between text-sm mb-1"><span>Memory</span><span id="mem">0%</span></div>
-            <div class="w-full bg-gray-200 rounded-full h-2"><div id="memBar" class="bg-green-500 h-2 rounded-full" style="width:0%"></div></div>
-          </div>
-        </div>
-      </div>
-      <div class="bg-white p-4 sm:p-5 rounded-xl shadow-sm lg:col-span-1">
-        <h2 class="text-xl font-semibold mb-4">Temperatures</h2>
-        <div id="temps" class="space-y-3 text-sm"></div>
-      </div>
-
-      <div class="bg-white p-4 sm:p-5 rounded-xl shadow-sm lg:col-span-2">
-        <h2 class="text-xl font-semibold mb-4">Network</h2>
-        <div id="net" class="space-y-3"></div>
-      </div>
-      <div class="bg-white p-4 sm:p-5 rounded-xl shadow-sm lg:col-span-1">
-        <h2 class="text-xl font-semibold mb-4">Storage</h2>
-        <div id="stg" class="space-y-4"></div>
-      </div>
-
-
-      <div class="bg-white p-4 sm:p-5 rounded-xl shadow-sm lg:col-span-3">
-        <h2 class="text-xl font-semibold mb-4">Download Manager</h2>
-
-        <div class="grid gap-4 sm:grid-cols-3 sm:items-end">
-          <div class="sm:col-span-2">
-            <label class="block text-sm font-medium text-gray-600 mb-1">Magnet or Video URL</label>
-            <input id="download-link" class="w-full p-2 rounded-md bg-gray-100 border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="magnet: or https://...">
-          </div>
-          <div>
-            <label class="block text-sm font-medium text-gray-600 mb-1">Destination</label>
-            <div class="flex gap-2">
-              <input id="dest" class="flex-1 w-full p-2 rounded-md bg-gray-100 border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500" value="/Video">
-              <button id="btn-browse" class="px-3 py-2 rounded-md bg-white border border-gray-300 hover:bg-gray-100 transition-colors">Browse</button>
+    <fieldset>
+        <legend>System Status</legend>
+        <div id="status-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); grid-gap: 2em;">
+            <div>
+                <h3>Services</h3>
+                <div id="svc"></div>
             </div>
-          </div>
+            <div>
+                <h3>Hardware</h3>
+                <div>CPU: <span id="cpu">0%</span></div>
+                <div class="progress-bar"><div id="cpuBar" class="progress-bar-fill" style="width:0%"></div></div>
+                <br>
+                <div>Memory: <span id="mem">0%</span></div>
+                <div class="progress-bar"><div id="memBar" class="progress-bar-fill" style="width:0%"></div></div>
+            </div>
+            <div>
+                <h3>Temperatures</h3>
+                <div id="temps"></div>
+            </div>
+        </div>
+    </fieldset>
+
+    <fieldset>
+        <legend>Network & Storage</legend>
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); grid-gap: 2em;">
+            <div>
+                <h3>Network Interfaces</h3>
+                <div id="net"></div>
+            </div>
+            <div>
+                <h3>Storage</h3>
+                <div id="stg"></div>
+            </div>
+        </div>
+    </fieldset>
+
+    <fieldset>
+        <legend>Download Manager</legend>
+        <div>
+            <label for="download-link">Magnet or Video URL</label><br>
+            <input id="download-link" placeholder="magnet: or https://..." style="width: 98%;"><br><br>
+
+            <label for="dest">Destination</label><br>
+            <input id="dest" value="/Video" style="width: calc(98% - 100px);">
+            <button id="btn-browse">Browse</button>
+        </div>
+        <br>
+        <div>
+            <button id="btn-download" class="primary">Download</button>
+            <button id="btn-mkdir">Create Folder</button>
         </div>
 
-        <div class="mt-4 flex gap-2">
-          <button id="btn-download" class="px-4 py-2 rounded-md bg-blue-500 hover:bg-blue-600 text-white font-semibold transition-colors">Download</button>
-          <button id="btn-mkdir" class="px-4 py-2 rounded-md bg-white border border-gray-300 hover:bg-gray-100 transition-colors">Create Folder</button>
-        </div>
+        <h3>Active Torrents</h3>
+        <div id="tx-progress"></div>
 
-        <h3 class="text-lg font-semibold mt-6 mb-3">Active Torrents</h3>
-        <div id="tx-progress" class="max-h-64 overflow-auto space-y-2 text-sm pr-2"></div>
-
-        <details class="mt-6 group">
-          <summary class="list-none cursor-pointer text-lg font-semibold flex items-center gap-2">
-            History
-            <svg class="w-4 h-4 transition-transform group-open:rotate-90" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" /></svg>
-          </summary>
-          <div id="tx-history" class="mt-3 space-y-2 text-sm"></div>
+        <details>
+          <summary style="cursor: pointer; font-weight: bold; margin-top: 1.5em;">History</summary>
+          <div id="tx-history"></div>
         </details>
-      </div>
+    </fieldset>
 
-      <div class="bg-white p-4 sm:p-5 rounded-xl shadow-sm lg:col-span-3">
-        <div class="flex justify-between items-center mb-4">
-            <h2 class="text-xl font-semibold">System Logs</h2>
-            <button id="btn-refresh-logs" class="px-4 py-2 text-sm font-medium rounded-lg bg-white border border-gray-300 hover:bg-gray-100 transition-colors">Refresh</button>
-        </div>
-        <pre id="logs-content" class="bg-gray-800 text-white p-4 rounded-lg text-xs overflow-auto h-72 font-mono whitespace-pre-wrap"></pre>
-      </div>
-    </div>
+    <fieldset>
+        <legend>System Logs</legend>
+        <button id="btn-refresh-logs">Refresh</button>
+        <pre id="logs-content"></pre>
+    </fieldset>
   </div>
 
-  <div id="browse-modal" class="fixed inset-0 hidden items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-    <div class="bg-white w-full max-w-lg rounded-xl shadow-2xl p-4">
-      <div class="flex justify-between items-center mb-4">
-        <h4 class="font-semibold text-lg">Choose Folder</h4>
-        <button id="browse-close" class="text-gray-400 hover:text-gray-600 transition-colors text-2xl leading-none">×</button>
+  <div id="browse-modal" class="hidden">
+    <div>
+      <div style="display: flex; justify-content: space-between; align-items: center;">
+        <h4>Choose Folder</h4>
+        <button id="browse-close" style="border:none; background:none; font-size: 2em; line-height: 0.5;">×</button>
       </div>
-      <div class="text-xs text-gray-500 mb-2">
-        <div>Root: <span id="browse-root-abs" class="font-mono bg-gray-100 px-1 py-0.5 rounded"></span></div>
-        <div class="mt-1">Current: <span id="browse-cwd" class="font-mono bg-gray-100 px-1 py-0.5 rounded">/</span></div>
+      <p style="font-size: 0.8em; color: #555;">
+        Root: <code id="browse-root-abs"></code><br>
+        Current: <code id="browse-cwd">/</code>
+      </p>
+      <div>
+        <input id="browse-path" readonly style="width: calc(100% - 70px);">
+        <button id="browse-up">Up</button>
       </div>
-      <div class="flex gap-2 mb-3">
-        <input id="browse-path" class="flex-1 p-2 rounded-md bg-gray-100 border border-gray-300" readonly>
-        <button id="browse-up" class="px-3 py-1 rounded-md bg-white border border-gray-300 hover:bg-gray-100 transition-colors">Up</button>
-      </div>
-      <div id="browse-list" class="max-h-72 overflow-auto border border-gray-200 rounded-lg"></div>
-      <div class="mt-4 flex justify-end gap-2">
-        <button id="browse-select" class="px-4 py-2 rounded-md bg-blue-500 hover:bg-blue-600 text-white font-semibold transition-colors">Select This Folder</button>
+      <div id="browse-list"></div>
+      <div style="text-align: right; margin-top: 1em;">
+        <button id="browse-select" class="primary">Select This Folder</button>
       </div>
     </div>
   </div>
@@ -175,13 +280,12 @@ function renderServices(services){
   const el=document.getElementById('svc'); el.innerHTML='';
   for(const [name,state] of Object.entries(services)){
     const row=document.createElement('div');
-    row.className='flex items-center justify-between';
-    row.innerHTML=`<span class="capitalize font-medium">${name}</span>
-      <label class="inline-flex items-center cursor-pointer">
-        <input type="checkbox" class="sr-only peer" ${state?'checked':''} data-svc="${name}">
-        <div class="w-11 h-6 bg-gray-200 rounded-full peer-checked:bg-green-500 relative transition-colors">
-          <div class="absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full transition-transform peer-checked:translate-x-full"></div>
-        </div>
+    row.className = 'service-item';
+    // Using a standard checkbox now
+    row.innerHTML=`
+      <label>
+        <input type="checkbox" ${state?'checked':''} data-svc="${name}">
+        <span style="text-transform: capitalize;">${name}</span>
       </label>`;
     el.appendChild(row);
   }
@@ -205,10 +309,12 @@ async function initDash(){
   st.storage.forEach(d=>{
     const used=(d.used/1073741824).toFixed(1),tot=(d.total/1073741824).toFixed(1);
     const wrap=document.createElement('div');
-    wrap.innerHTML=`<div class="flex justify-between text-sm mb-1">
-        <span class="font-mono">${d.mountpoint}</span><span>${used} / ${tot} GB</span>
+    wrap.className = 'storage-item';
+    wrap.innerHTML=`
+      <div>
+        <code>${d.mountpoint}</code> — ${used} / ${tot} GB
       </div>
-      <div class="w-full bg-gray-200 rounded-full h-2"><div class="bg-indigo-500 h-2 rounded-full" style="width:${d.percent}%"></div></div>`;
+      <div class="progress-bar"><div class="progress-bar-fill" style="width:${d.percent}%"></div></div>`;
     el.appendChild(wrap);
   });
 
@@ -227,14 +333,16 @@ async function initDash(){
       const hi = (t.high!=null)?` • high ${t.high.toFixed(0)}°C`:'';
       const cr = (t.critical!=null)?` • crit ${t.critical.toFixed(0)}°C`:'';
       const row = document.createElement('div');
-      row.innerHTML = `<div class="flex justify-between">
-        <span class="truncate">${t.label}</span>
-        <span class="font-semibold">${t.current!=null? t.current.toFixed(1)+'°C' : '—'}</span>
-      </div>
-      <div class="text-xs text-gray-500">${hi}${cr}</div>`;
+      row.className = 'temp-item';
+      row.innerHTML = `
+        <div>
+          <span>${t.label}: </span>
+          <b>${t.current!=null? t.current.toFixed(1)+'°C' : '—'}</b>
+        </div>
+        <div style="font-size: 0.8em; color: #555;">${hi}${cr}</div>`;
       tempsEl.appendChild(row);
     });
-    if (!tempsEl.innerHTML) tempsEl.innerHTML = `<div class="text-gray-400">No sensors found</div>`;
+    if (!tempsEl.innerHTML) tempsEl.innerHTML = `<p>No sensors found</p>`;
 
     // NETWORK
     const netEl = document.getElementById('net');
@@ -248,21 +356,18 @@ async function initDash(){
     };
     Object.entries(ifaces).forEach(([name, info])=>{
       const row = document.createElement('div');
-      row.className = 'p-3 rounded-lg border border-gray-200 bg-gray-50/50';
+      row.className = 'network-item';
+      const status = info.isup ? 'UP' : 'DOWN';
+      const speed = info.speed_mbps ? `(${info.speed_mbps} Mbps)` : '';
       row.innerHTML = `
-        <div class="flex justify-between items-center">
-          <div class="font-medium flex items-center gap-2">${name} ${info.isup ? '<span class="text-green-500">●</span>' : '<span class="text-red-500">●</span>'}</div>
-          <div class="text-xs text-gray-500">${info.speed_mbps? info.speed_mbps+' Mbps' : ''}</div>
-        </div>
-        <div class="text-xs text-gray-500 font-mono">${info.ip || 'no IP address'}</div>
-        <div class="mt-2 flex gap-4 text-sm">
-          <div><span class="text-gray-500">↓</span> ${fmt(info.rx_bps||0)}</div>
-          <div><span class="text-gray-500">↑</span> ${fmt(info.tx_bps||0)}</div>
-        </div>
+        <b>${name} [${status}]</b> ${speed}<br>
+        <code>${info.ip || 'no IP address'}</code><br>
+        <span>↓ ${fmt(info.rx_bps||0)}</span> |
+        <span>↑ ${fmt(info.tx_bps||0)}</span>
       `;
       netEl.appendChild(row);
     });
-    if (!netEl.innerHTML) netEl.innerHTML = `<div class="text-gray-400">No active interfaces</div>`;
+    if (!netEl.innerHTML) netEl.innerHTML = `<p>No active interfaces</p>`;
   });
 }
 
@@ -272,7 +377,7 @@ function renderTorrents(data){
   const el = document.getElementById('tx-progress');
   el.innerHTML = '';
   if (list.length === 0) {
-    el.innerHTML = `<div class="text-gray-400 text-center py-4">No active torrent downloads.</div>`;
+    el.innerHTML = `<p>No active torrent downloads.</p>`;
     return;
   }
 
@@ -284,18 +389,17 @@ function renderTorrents(data){
     const spd   = t.downloadSpeed > 0 ? (Math.round(t.downloadSpeed/1024)+' KB/s') : '';
 
     const row = document.createElement('div');
-    row.className = 'p-3 rounded-lg border border-gray-200 bg-gray-50/50';
+    row.className = 'torrent-item';
     row.innerHTML = `
-      <div class="flex justify-between gap-2 items-start">
-        <div class="truncate pr-2 font-medium">${name}</div>
-        <button class="flex-shrink-0 text-red-500 hover:text-red-700 w-6 h-6 flex items-center justify-center rounded-full hover:bg-red-100 transition-colors" data-kill="${t.gid}" title="Stop & remove">×</button>
+      <div style="display:flex; justify-content: space-between;">
+        <div style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-right: 1em;">${name}</div>
+        <button class="danger" data-kill="${t.gid}" title="Stop & remove">X</button>
       </div>
-      <div class="mt-2 flex items-center gap-3">
-        <div class="flex-1 bg-gray-200 rounded-full h-2 overflow-hidden">
-          <div class="bg-green-500 h-2" style="width:${pct}%"></div>
-        </div>
-        <div class="text-xs font-mono w-12 text-right">${ total===0 ? '...' : (pct+'%') }</div>
-        <div class="text-xs font-mono w-20 text-right">${spd}</div>
+      <div class="progress-bar" style="margin-top: 5px;">
+        <div class="progress-bar-fill" style="width:${pct}%"></div>
+      </div>
+      <div style="text-align: right; font-size: 0.9em;">
+        ${ total===0 ? '...' : (pct+'%') } @ ${spd}
       </div>
     `;
     el.appendChild(row);
@@ -321,20 +425,22 @@ async function loadHistory(){
     const h=await api('/admin/torrents/history');
     const el=document.getElementById('tx-history'); el.innerHTML='';
     if (h.history.length === 0) {
-      el.innerHTML = `<div class="text-gray-400 text-center py-4">History is empty.</div>`;
+      el.innerHTML = `<p>History is empty.</p>`;
       return;
     }
     h.history.forEach(it=>{
       const when=new Date((it.completed_at||it.added_at)*1000).toLocaleString();
       const row=document.createElement('div');
-      row.className='p-3 rounded-lg border border-gray-200 bg-gray-50/50 flex justify-between gap-3 items-start';
+      row.className = 'history-item';
       const size=it.size_bytes?(it.size_bytes/1073741824).toFixed(2)+' GB':'';
       row.innerHTML=`
-        <div class="truncate">
-          <div class="font-medium">${it.name}</div>
-          <div class="text-xs text-gray-500 mt-1">${it.dest} • ${when} ${size?('• '+size):''}</div>
+        <div style="display:flex; justify-content: space-between;">
+            <div>
+              <div>${it.name}</div>
+              <div style="font-size: 0.8em; color: #555;">${it.dest} • ${when} ${size?('• '+size):''}</div>
+            </div>
+            <button class="danger" data-hdel="${it.id}" title="Delete history entry">X</button>
         </div>
-        <button class="flex-shrink-0 text-red-500 hover:text-red-700 w-6 h-6 flex items-center justify-center rounded-full hover:bg-red-100 transition-colors" data-hdel="${it.id}" title="Delete history entry">×</button>
       `;
       el.appendChild(row);
     });
@@ -391,36 +497,29 @@ var historyTimer;
 async function browseLoad(path=''){
   const j = await api('/admin/torrents/browse?path='+encodeURIComponent(path));
 
-  // update location info
   document.getElementById('browse-root-abs').textContent = j.root_abs || '';
   document.getElementById('browse-cwd').textContent = j.cwd || '/';
   document.getElementById('browse-path').value = j.cwd || '/';
 
-  // render subdirs
   const browseList = document.getElementById('browse-list');
   browseList.innerHTML = '';
   const ul = document.createElement('ul');
-  ul.className = 'divide-y divide-gray-200';
 
-  // The 'Up' button is handled by the static HTML button now, but this is a good fallback
   if (j.parent && j.cwd !== '/') {
     const liUp = document.createElement('li');
-    liUp.className = 'px-4 py-3 hover:bg-gray-100 cursor-pointer flex items-center gap-3';
-    liUp.innerHTML = `<span>⬅️</span><span>..</span>`;
+    liUp.innerHTML = `[..] Go up`;
     liUp.onclick = ()=> browseLoad(j.parent);
     ul.appendChild(liUp);
   }
 
   if (!j.dirs || j.dirs.length === 0) {
     const li = document.createElement('li');
-    li.className = 'px-4 py-6 text-center text-gray-400';
-    li.textContent = 'No subfolders';
+    li.textContent = '(No subfolders)';
     ul.appendChild(li);
   } else {
     j.dirs.forEach(d=>{
       const li=document.createElement('li');
-      li.className='px-4 py-3 hover:bg-gray-100 cursor-pointer flex items-center gap-3';
-      li.innerHTML=`<span>📁</span><span class="truncate">${d.name}/</span>`;
+      li.innerHTML=`[D] ${d.name}/`;
       li.onclick=()=> browseLoad(d.path);
       ul.appendChild(li);
     });
@@ -430,13 +529,13 @@ async function browseLoad(path=''){
 }
 
 document.getElementById('btn-browse').onclick=()=>{
-  modal.classList.remove('hidden'); modal.classList.add('flex');
+  modal.classList.remove('hidden');
   browseLoad(document.getElementById('dest').value.trim());
 };
-document.getElementById('browse-close').onclick=()=>{modal.classList.add('hidden'); modal.classList.remove('flex');};
+document.getElementById('browse-close').onclick=()=>{modal.classList.add('hidden');};
 document.getElementById('browse-select').onclick=()=>{
   document.getElementById('dest').value=browsePath.value||'/';
-  modal.classList.add('hidden'); modal.classList.remove('flex');
+  modal.classList.add('hidden');
 };
 document.getElementById('browse-up').onclick=async()=>{
   const currentPath = document.getElementById('browse-path').value || '/';
@@ -452,17 +551,14 @@ document.getElementById('btn-mkdir').onclick=async()=>{
     alert('Folder created.'); if(!modal.classList.contains('hidden')) browseLoad(parent);
   }catch(ex){ alert('Error: '+ex.message); }
 };
-// --- MODIFIED to use new function name ---
 document.getElementById('btn-download').onclick=startDownload;
 
-// *** NEW *** Log fetching logic
 async function loadLogs() {
   const logsContent = document.getElementById('logs-content');
   logsContent.textContent = 'Loading logs...';
   try {
     const data = await api('/admin/logs');
     logsContent.textContent = data.logs || 'No logs yet. Everything is running smoothly!';
-    // Scroll to the bottom
     logsContent.scrollTop = logsContent.scrollHeight;
   } catch (ex) {
     logsContent.textContent = 'Error loading logs: ' + ex.message;
@@ -470,17 +566,16 @@ async function loadLogs() {
 }
 
 document.getElementById('btn-refresh-logs').addEventListener('click', loadLogs);
-// *** END NEW ***
 
 const _initDashOrig = initDash;
 initDash = async function () {
   await _initDashOrig();
   initTorrentSockets();
-  loadHistory();                       // initial fetch
-  loadLogs();                          // *** NEW *** initial log fetch
+  loadHistory();
+  loadLogs();
 
-  if (!historyTimer) {                 // start one timer only
-    historyTimer = setInterval(loadHistory, 10000);  // every 10s
+  if (!historyTimer) {
+    historyTimer = setInterval(loadHistory, 10000);
   }
 };
 
