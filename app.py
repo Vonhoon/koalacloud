@@ -82,15 +82,20 @@ def force_https_on_public_domain():
             return redirect(request.url.replace('http://', 'https://', 1), code=301)
 
 # ==================== Helpers ====================
+# ==================== Helpers ====================
 def load_service_map():
     mapping = {}
     for item in SERVICE_UNITS_ENV.split(','):
         item = item.strip()
         if not item:
             continue
-        if ':' in item:
-            k, v = item.split(':', 1)
-            mapping[k.strip()] = v.strip()
+        parts = item.split(':', 2)
+        if len(parts) == 3:
+            name, stype, value = parts
+            mapping[name.strip()] = {'type': stype.strip(), 'value': value.strip()}
+        elif len(parts) == 2: # old format for backward compatibility
+            name, value = parts
+            mapping[name.strip()] = {'type': 'systemd', 'value': value.strip()}
     return mapping
 
 SERVICE_MAP = load_service_map()
@@ -102,26 +107,24 @@ def check_password(user, pw) -> bool:
     p = pam.pam()
     return p.authenticate(user, pw, service=PAM_SERVICE)
 
-def _systemctl_cmd(*args, quiet=False):
+# In app.py, find and replace this function
+def _run_host_cmd(cmd, cwd=None):
     base = []
     if USE_NSENTER:
         base = ['nsenter','-t','1','-m','-p','-i','-u','-n','--']
-    cmd = base + ['systemctl'] + (['--quiet'] if quiet else []) + list(args)
-    return subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    full_cmd = base + cmd
+    return subprocess.run(full_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
-def get_service_status(unit: str) -> bool:
-    p = _systemctl_cmd('is-active', unit, quiet=True)
+def get_systemd_service_status(unit: str) -> bool:
+    p = _run_host_cmd(['systemctl', 'is-active', '--quiet', unit])
     return p.returncode == 0
 
-def get_system_stats():
-    cpu = psutil.cpu_percent(interval=0.5)
-    mem = psutil.virtual_memory().percent
-    return {
-        'cpu_percent': float(cpu),
-        'memory_percent': float(mem),
-        'temps': _get_temps(),   # NEW
-        'net': _get_net(),       # NEW
-    }
+# In app.py, find and replace this function
+def get_docker_service_status(path: str) -> bool:
+    # This command is now a single string that the host shell will execute
+    shell_cmd_on_host = f"cd {path} && docker compose ps -q"
+    p = _run_host_cmd(['sh', '-c', shell_cmd_on_host])
+    return p.returncode == 0 and p.stdout.strip() != b''
 
 def auth_required_json(func):
     @wraps(func)
@@ -341,9 +344,34 @@ def _record_history(rows):
                 )
         conn.commit()
 
+def get_system_stats():
+    try:
+        cpu = psutil.cpu_percent(interval=0.5)
+        mem = psutil.virtual_memory().percent
+        return {
+            'cpu_percent': float(cpu),
+            'memory_percent': float(mem),
+            'temps': _get_temps(),
+            'net': _get_net(),
+        }
+    except Exception as e:
+        app.logger.error(f"Could not retrieve base system stats (CPU/Mem): {e}")
+        # Return empty stats on failure so the socket doesn't crash
+        return {
+            'cpu_percent': 0,
+            'memory_percent': 0,
+            'temps': [],
+            'net': {},
+        }
+
 def _stats_task():
+    app.logger.info("Starting system stats background task.")
     while True:
-        socketio.emit('system_stats', get_system_stats())
+        try:
+            stats = get_system_stats()
+            socketio.emit('system_stats', stats)
+        except Exception as e:
+            app.logger.error(f"Error in stats task: {e}", exc_info=True)
         socketio.sleep(2)
 
 def _torrent_task():
@@ -461,26 +489,58 @@ def get_logs():
 @auth_required_json
 def toggle_service():
     data = request.get_json(force=True, silent=True) or {}
-    friendly = data.get('service')
-    desired = bool(data.get('state'))
-    if friendly == 'drive':
+    friendly_name = data.get('service')
+    desired_state = bool(data.get('state'))
+
+    if friendly_name == 'drive':
         global DRIVE_ENABLED
-        DRIVE_ENABLED = desired
+        DRIVE_ENABLED = desired_state
         return jsonify({'ok': True, 'service': 'drive', 'status': DRIVE_ENABLED})
-    unit = SERVICE_MAP.get(friendly)
-    if not unit:
-        return jsonify({'ok': False, 'error': f"Unknown service '{friendly}'"}), 400
-    action = 'start' if desired else 'stop'
-    p = _systemctl_cmd(action, unit)
-    if p.returncode != 0:
-        msg = (p.stderr or p.stdout).decode(errors='ignore').strip() or f'Failed to {action} {friendly}'
-        return jsonify({'ok': False, 'error': msg}), 500
-    return jsonify({'ok': True, 'service': friendly, 'status': get_service_status(unit)})
+
+    service_details = SERVICE_MAP.get(friendly_name)
+    if not service_details:
+        return jsonify({'ok': False, 'error': f"Unknown service '{friendly_name}'"}), 400
+
+    service_type = service_details['type']
+    service_value = service_details['value']
+
+    if service_type == 'systemd':
+        action = 'start' if desired_state else 'stop'
+        p = _run_host_cmd(['systemctl', action, service_value])
+        if p.returncode != 0:
+            msg = (p.stderr or p.stdout).decode(errors='ignore').strip() or f'Failed to {action} {friendly_name}'
+            return jsonify({'ok': False, 'error': msg}), 500
+        return jsonify({'ok': True, 'service': friendly_name, 'status': get_systemd_service_status(service_value)})
+
+    # In app.py, find the toggle_service function and replace the 'elif service_type == 'docker':' block
+    elif service_type == 'docker':
+        action_cmd_str = 'up -d' if desired_state else 'down'
+        # Construct the full shell command to be executed on the host
+        shell_cmd_on_host = f"cd {service_value} && docker compose {action_cmd_str}"
+        
+        # We pass this complete command to the host's shell
+        p = _run_host_cmd(['sh', '-c', shell_cmd_on_host])
+
+        if p.returncode != 0:
+            msg = (p.stderr or p.stdout).decode(errors='ignore').strip() or f'Failed to run docker compose for {friendly_name}'
+            return jsonify({'ok': False, 'error': msg}), 500
+        
+        time.sleep(2)
+        return jsonify({'ok': True, 'service': friendly_name, 'status': get_docker_service_status(service_value)})
+    return jsonify({'ok': False, 'error': f"Unsupported service type '{service_type}'"}), 400
 
 @app.get('/admin/services/list')
 @auth_required_json
 def list_services():
-    services = {k: get_service_status(v) for k, v in SERVICE_MAP.items()}
+    services = {}
+    for name, details in SERVICE_MAP.items():
+        if details.get('type') == 'systemd':
+            services[name] = get_systemd_service_status(details['value'])
+        elif details.get('type') == 'docker':
+            services[name] = get_docker_service_status(details['value'])
+        else: # Handle old format
+             services[name] = get_systemd_service_status(details)
+
     services['drive'] = DRIVE_ENABLED
     return jsonify({'ok': True, 'services': services})
 
