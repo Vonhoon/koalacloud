@@ -46,7 +46,9 @@ DB_PATH = Path(os.getenv('DB_PATH', './share.db')).resolve()
 MAX_UPLOAD_MB = int(os.getenv('MAX_UPLOAD_MB', '51200'))
 
 DASH_MOUNTS = [Path(p) for p in os.getenv('DASH_MOUNTS', './storage').split(',')]
-
+REBOOT_ON_FAILURES = os.getenv('REBOOT_ON_FAILURES', '0') == '1'
+CRITICAL_TEMP = int(os.getenv('CRITICAL_TEMP', '95'))
+WATCH_NET_IFACE = os.getenv('WATCH_NET_IFACE', None)
 ALLOWED_EXT = {'txt','pdf','png','jpg','jpeg','gif','mp4','mkv','avi','zip','rar','7z','srt','ass'}
 
 LOG_PATH = DB_PATH.parent / 'koalacloud.log'
@@ -80,8 +82,7 @@ def force_https_on_public_domain():
         proto = request.headers.get('X-Forwarded-Proto', 'http')
         if proto != 'https':
             return redirect(request.url.replace('http://', 'https://', 1), code=301)
-
-# ==================== Helpers ====================
+        
 # ==================== Helpers ====================
 def load_service_map():
     mapping = {}
@@ -370,8 +371,32 @@ def _stats_task():
         try:
             stats = get_system_stats()
             socketio.emit('system_stats', stats)
+            
         except Exception as e:
             app.logger.error(f"Error in stats task: {e}", exc_info=True)
+
+        if REBOOT_ON_FAILURES:
+            # 1. Check temperature
+            try:
+                for temp in stats.get('temps', []):
+                    if temp.get('current') is not None and temp['current'] > CRITICAL_TEMP:
+                        print(f"--- CRITICAL: Temperature {temp['label']} at {temp['current']}°C. REBOOTING. ---")
+                        _run_host_cmd(['systemctl', 'reboot']) 
+                        break # Reboot command sent, break inner loop
+            except Exception as e:
+                print(f"Error checking temps for reboot: {e}")
+
+            # 2. Check network interface
+            try:
+                if WATCH_NET_IFACE:
+                    net_stats = stats.get('net', {})
+                    # Check if the watched interface exists AND its 'isup' state is False
+                    if WATCH_NET_IFACE in net_stats and not net_stats[WATCH_NET_IFACE].get('isup'):
+                        print(f"--- CRITICAL: Network iface {WATCH_NET_IFACE} is DOWN. REBOOTING. ---")
+                        _run_host_cmd(['systemctl', 'reboot'])
+            except Exception as e:
+                print(f"Error checking net for reboot: {e}")
+
         socketio.sleep(2)
 
 def _torrent_task():
