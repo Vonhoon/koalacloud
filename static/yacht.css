@@ -1,0 +1,226 @@
+*, ::before, ::after {
+  box-sizing: border-box;
+}
+
+:root {
+  --accent: #0ea5e9;
+  --bg-light: #f8fafc;
+  --border: #e5e7eb;
+  --ink: #0f172a;
+  --ink-light: #64748b;
+  --kept: #fef08a; /* Yellow for kept dice */
+  --kept-border: #facc15;
+}
+
+/* --- Basic Setup --- */
+html, body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, sans-serif;
+  color: var(--ink);
+  background-color: var(--bg-light);
+  margin: 0;
+  padding: 0;
+  overflow: hidden; /* Prevent scrolling */
+  height: 100%;
+  width: 100%;
+}
+
+.hidden {
+  display: none !important;
+}
+
+/* --- Waiting Screen --- */
+#waiting-screen {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100vh;
+  text-align: center;
+}
+#connection-status {
+  color: var(--ink-light);
+  font-size: 0.9rem;
+  margin-top: 2rem;
+}
+.spinner {
+  border: 4px solid rgba(0, 0, 0, 0.1);
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border-left-color: var(--accent);
+  animation: spin 1s ease infinite;
+  margin-bottom: 1rem;
+}
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+/* --- Game Screen --- */
+#game-screen {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+/* p5.js canvas will go here */
+#canvas-container {
+  flex-grow: 1; /* Take up all space except controls */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  touch-action: none; /* Prevent browser gestures on canvas */
+}
+canvas {
+  max-width: 100%;
+  max-height: 100%;
+}
+
+#game-controls {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem;
+  background: white;
+  border-top: 1px solid var(--border);
+  gap: 0.5rem;
+}
+#turn-indicator {
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+.game-btn {
+  border: 1px solid var(--border);
+  background: #fff;
+  color: var(--ink);
+  padding: 0.75rem 1rem;
+  border-radius: 8px;
+  font-size: 1rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.2s;
+  -webkit-tap-highlight-color: transparent; /* Remove tap flash */
+}
+.game-btn:hover {
+  background-color: var(--bg-light);
+}
+.game-btn.primary {
+  background: var(--accent);
+  color: white;
+  border-color: var(--accent);
+}
+.game-btn.primary:hover {
+  background-color: var(--accent-2);
+}
+.game-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  background: #eee;
+}
+#roll-button {
+  flex-grow: 1; /* Take up remaining space */
+}
+
+/* --- Score Sheet --- */
+#score-sheet {
+  position: fixed;
+  right: -100%; /* Start off-screen */
+  top: 0;
+  width: 100%;
+  max-width: 400px;
+  height: 100%;
+  background: white;
+  box-shadow: -3px 0 12px rgba(0, 0, 0, 0.1);
+  transition: right 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+}
+#score-sheet.slide-in {
+  right: 0; /* Slide it in */
+}
+
+#score-header {
+  display: flex;
+  align-items: center;
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+#score-header h3 {
+  margin: 0 auto;
+  font-size: 1.1rem;
+}
+#score-sheet-close {
+  font-size: 1.75rem;
+  font-weight: 300;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0.25rem 0.5rem;
+  line-height: 1;
+}
+
+.score-column-container {
+  display: flex;
+  flex-grow: 1;
+  overflow-y: auto; /* Make scores scrollable */
+  padding: 1rem;
+  gap: 1rem;
+}
+.score-column {
+  width: 50%;
+}
+.score-column h4 {
+  margin: 0 0 0.5rem 0;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 0.5rem;
+  font-size: 1rem;
+}
+.score-column h5 {
+  margin: 0.75rem 0 0.25rem 0;
+  font-size: 0.9rem;
+  color: var(--ink-light);
+}
+
+.score-category {
+  display: flex;
+  justify-content: space-between;
+  padding: 0.5rem 0.25rem;
+  font-size: 0.95rem;
+  border-radius: 4px;
+}
+.score-category span {
+  font-weight: 600;
+}
+
+/* Score category states */
+.score-category.estimated {
+  background-color: #e0f2fe; /* Light blue */
+  cursor: pointer;
+}
+.score-category.estimated:hover {
+  background-color: #bae6fd;
+}
+.score-category.locked {
+  color: var(--ink-light);
+}
+.score-category.locked span {
+  color: var(--ink);
+}
+
+.score-subtotal {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--accent);
+  padding: 0.5rem 0.25rem;
+  border-top: 1px solid var(--border);
+  margin-top: 0.25rem;
+}

@@ -18,7 +18,7 @@ import eventlet
 eventlet.monkey_patch()
 
 from flask import Flask, render_template, request, jsonify, send_file, abort, session, redirect, url_for
-from flask_socketio import SocketIO
+from flask_socketio import SocketIO, emit
 import pam
 import psutil
 from werkzeug.utils import secure_filename
@@ -27,6 +27,7 @@ import threading
 import yt_dlp
 import jwt
 from urllib.parse import urljoin, quote
+from functools import wraps
 # -------------------
 
 # ==================== Config ====================
@@ -47,6 +48,7 @@ DB_PATH = Path(os.getenv('DB_PATH', './share.db')).resolve()
 MAX_UPLOAD_MB = int(os.getenv('MAX_UPLOAD_MB', '51200'))
 
 DASH_MOUNTS = [Path(p) for p in os.getenv('DASH_MOUNTS', './storage').split(',')]
+EMPTY_TEMPLATE_DIR = Path('/app/empty_templates')
 REBOOT_ON_FAILURES = os.getenv('REBOOT_ON_FAILURES', '0') == '1'
 CRITICAL_TEMP = int(os.getenv('CRITICAL_TEMP', '95'))
 WATCH_NET_IFACE = os.getenv('WATCH_NET_IFACE', None)
@@ -93,6 +95,64 @@ def force_https_on_public_domain():
         if proto != 'https':
             return redirect(request.url.replace('http://', 'https://', 1), code=301)
         
+# ==================== Yatch ====================
+# --- ADD THIS GLOBAL VARIABLE (near your other globals) ---
+waiting_player_sid = None
+# ---------------------------------------------------------
+
+# --- ADD THIS NEW ROUTE ---
+# This will serve your game.
+
+# ----------------------------
+
+# --- ADD THESE NEW SOCKET.IO HANDLERS ---
+@socketio.on('find_game')
+def on_find_game():
+    """Handles a player looking for a game."""
+    global waiting_player_sid
+    player_sid = request.sid
+
+    if waiting_player_sid:
+        app.logger.info(f"Match found: {player_sid} and {waiting_player_sid}")
+        # Found a match!
+        opponent_sid = waiting_player_sid
+        waiting_player_sid = None # Clear the waiting spot
+
+        # Tell both players they are matched
+        # Player 1 (who was waiting) goes first
+        emit('game_start', { 'opponent_sid': player_sid, 'my_turn': True }, room=opponent_sid)
+        # Player 2 (who just joined) goes second
+        emit('game_start', { 'opponent_sid': opponent_sid, 'my_turn': False }, room=player_sid)
+    else:
+        # No one is waiting, this player is now waiting
+        app.logger.info(f"Player waiting: {player_sid}")
+        waiting_player_sid = player_sid
+        emit('waiting_for_opponent')
+
+@socketio.on('game_action')
+def on_game_action(data):
+    """Relays a game action from one player to their opponent."""
+    opponent_sid = data.get('opponent_sid')
+    action_data = data.get('action')
+    if opponent_sid:
+        emit('action_from_opponent', action_data, room=opponent_sid)
+
+@socketio.on('disconnect')
+def on_disconnect():
+    """Handles a player disconnecting."""
+    global waiting_player_sid
+    player_sid = request.sid
+    
+    if player_sid == waiting_player_sid:
+        app.logger.info(f"Waiting player disconnected: {player_sid}")
+        waiting_player_sid = None
+    else:
+        # A player in a game left. Tell everyone.
+        # The client-side will check if it was their opponent.
+        app.logger.info(f"Game player disconnected: {player_sid}")
+        emit('player_disconnected', { 'sid': player_sid }, broadcast=True)
+# ------------------------------------------
+
 # ==================== Helpers ====================
 def load_service_map():
     mapping = {}
@@ -144,6 +204,41 @@ def auth_required_json(func):
             return jsonify({'ok': False, 'error': 'Unauthorized', 'code': 401}), 401
         return func(*args, **kwargs)
     return wrapper
+
+@app.post('/api/create_new_doc')
+@auth_required_json
+def api_create_new_doc():
+    parent = request.json.get('parent', '')
+    name = os.path.basename(request.json.get('name', '')) # Sanitize
+    if not name:
+        abort(400, 'Missing name')
+
+    # Validate extension and find template
+    ext = name.split('.')[-1]
+    if ext not in ['docx', 'xlsx', 'pptx']:
+        abort(400, 'Invalid file extension. Must be .docx, .xlsx, or .pptx')
+    
+    template_file = EMPTY_TEMPLATE_DIR / f'empty.{ext}'
+    if not template_file.exists():
+        app.logger.error(f'Missing empty template file: {template_file}')
+        abort(500, f'Server is missing the template for .{ext} files.')
+
+    target_dir = _safe_join(parent)
+    target_path = target_dir / name
+
+    if target_path.exists():
+        abort(400, 'A file with this name already exists')
+    
+    try:
+        # Copy the empty template to the target path
+        shutil.copy2(str(template_file), str(target_path))
+    except Exception as e:
+        app.logger.error(f'Failed to copy template: {e}')
+        abort(500, 'Could not create file on server.')
+    
+    # Return the relative path for the editor
+    rel_path = str(target_path.relative_to(STORAGE_ROOT))
+    return jsonify({'ok': True, 'path': rel_path})
 
 # --- NEW DECORATOR FOR PAGES ---
 def auth_required_page(func):
@@ -598,9 +693,17 @@ def help_page():
 # ==================== Drive page ====================
 @app.get('/')
 def drive_root():
+    # Check which domain the user is visiting
+    host = request.headers.get('Host', '')
+
+    if host == 'yacht.koalarepublic.top':
+        # If they are on the yacht subdomain, serve the game
+        return render_template('yacht.html')
+    
     if not DRIVE_ENABLED:
         return "<h1 style='text-align:center;margin-top:20%'>🚫 Drive is disabled by admin</h1>", 503
     return render_template('index.html', app_name=APP_NAME)
+
 @app.get('/api/list')
 @auth_required_json
 def api_list():
@@ -645,7 +748,7 @@ def api_upload():
         abort(400, 'No selected file')
     if not allowed_file(f.filename):
         abort(400, 'File type not allowed')
-    name = secure_filename(f.filename)
+    name = os.path.basename(f.filename)
     dest = target_dir / name
     f.save(dest)
     return jsonify({'ok': True, 'saved_as': str(dest.relative_to(STORAGE_ROOT))})
@@ -1006,6 +1109,11 @@ def onlyoffice_editor(rel_path):
                 "key": file_key,
                 "title": p.name,
                 "url": file_url,
+                "permissions": {
+                    "edit": True,
+                    "download": True,
+                    "print": True,
+                }
             },
             "documentType": "text", # This will be auto-detected below
             "editorConfig": {
