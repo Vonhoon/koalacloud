@@ -23,9 +23,10 @@ import pam
 import psutil
 from werkzeug.utils import secure_filename
 from werkzeug.middleware.proxy_fix import ProxyFix
-# --- NEW IMPORTS ---
 import threading
 import yt_dlp
+import jwt
+from urllib.parse import urljoin
 # -------------------
 
 # ==================== Config ====================
@@ -49,9 +50,17 @@ DASH_MOUNTS = [Path(p) for p in os.getenv('DASH_MOUNTS', './storage').split(',')
 REBOOT_ON_FAILURES = os.getenv('REBOOT_ON_FAILURES', '0') == '1'
 CRITICAL_TEMP = int(os.getenv('CRITICAL_TEMP', '95'))
 WATCH_NET_IFACE = os.getenv('WATCH_NET_IFACE', None)
-ALLOWED_EXT = {'txt','pdf','png','jpg','jpeg','gif','mp4','mkv','avi','zip','rar','7z','srt','ass'}
-
+ALLOWED_EXT = {
+    'txt','pdf','png','jpg','jpeg','gif','mp4','mkv','avi','zip','rar','7z','srt','ass',
+    'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'odt', 'ods', 'odp'
+}
 LOG_PATH = DB_PATH.parent / 'koalacloud.log'
+
+ONLYOFFICE_JWT_SECRET   = os.getenv('ONLYOFFICE_JWT_SECRET', 'this-is-unsafe-change-it')
+ONLYOFFICE_DOCS_URL     = os.getenv('ONLYOFFICE_DOCS_URL', 'http://localhost:8080') # Internal Docker URL
+ONLYOFFICE_PUBLIC_URL = os.getenv('ONLYOFFICE_PUBLIC_URL', 'http://localhost:8080') # Public-facing URL
+KOALA_PUBLIC_URL      = os.getenv('KOALA_PUBLIC_URL', 'http://localhost:5000')
+# ---------------------------
 
 # ==================== App ====================
 app = Flask(__name__, static_folder="static")
@@ -954,6 +963,141 @@ def notes_save_api(date_str): # Renamed to avoid conflict with function `save`
 def health_check():
     """Health check endpoint."""
     return jsonify({'status': 'ok'})
+
+# --- NEW ONLYOFFICE ROUTES ---
+@app.get('/editor/<path:rel_path>')
+@auth_required_json # Use your existing auth!
+def onlyoffice_editor(rel_path):
+    """
+    This route serves the editor.html page with the
+    correct configuration to boot OnlyOffice.
+    """
+    try:
+        p = _safe_join(rel_path)
+        if not p.exists() or not p.is_file():
+            abort(404)
+
+        # 1. We need a *publicly accessible* URL for the file.
+        #    Let's re-use your share logic to create a temporary, 1-hour link.
+        token = secrets.token_urlsafe(16)
+        expires_at = int(time.time() + 3600) # 1 hour expiry
+        with sqlite3.connect(DB_PATH) as conn:
+            conn.execute(
+                'INSERT INTO shares(token, target_path, is_dir, expires_at, created_at) VALUES (?,?,?,?,?)',
+                (token, str(p), 0, expires_at, int(time.time()))
+            )
+            conn.commit()
+        
+        # This is the URL the OnlyOffice *server* will use to download the file
+        file_url = urljoin(KOALA_PUBLIC_URL, f'/s/{token}')
+
+        # 2. This is the URL the OnlyOffice *server* will POST to when saving
+        #    We must pass our original path in the query string so we know what to save
+        callback_url = urljoin(KOALA_PUBLIC_URL, f'/api/onlyoffice/save?path={rel_path}')
+        
+        # 3. Create a unique key for this file version (prevents caching issues)
+        file_key = f"{p.stat().st_mtime}-{p.stat().st_size}-{p.name}"
+
+        # 4. Build the config object
+        config = {
+            "document": {
+                "fileType": p.suffix.lstrip('.'),
+                "key": file_key,
+                "title": p.name,
+                "url": file_url,
+            },
+            "documentType": "text", # This will be auto-detected below
+            "editorConfig": {
+                "user": {
+                    "id": session.get('user', 'guest'),
+                    "name": session.get('user', 'Guest')
+                },
+                "mode": "edit", # 'edit' or 'view'
+                "callbackUrl": callback_url,
+            }
+        }
+        
+        # Auto-detect documentType based on extension
+        ext = p.suffix.lstrip('.').lower()
+        if ext in ['doc', 'docx', 'odt', 'rtf', 'txt']:
+            config['documentType'] = 'text'
+        elif ext in ['xls', 'xlsx', 'ods', 'csv']:
+            config['documentType'] = 'spreadsheet'
+        elif ext in ['ppt', 'pptx', 'odp']:
+            config['documentType'] = 'presentation'
+        
+        # 5. Sign the config with the JWT secret
+        # The OO server *requires* this token to be in the main config
+        config['token'] = jwt.encode(config, ONLYOFFICE_JWT_SECRET, algorithm='HS256')
+
+        return render_template(
+            'editor.html',
+            app_name=APP_NAME,
+            config_json=json.dumps(config),
+            onlyoffice_public_url=ONLYOFFICE_PUBLIC_URL
+        )
+
+    except Exception as e:
+        print(f"Editor Error: {e}")
+        abort(500, str(e))
+
+
+@app.post('/api/onlyoffice/save')
+def onlyoffice_save_callback():
+    """
+    This is the secure callback OnlyOffice server hits on save.
+    It does NOT use session auth, it uses JWT auth from the payload.
+    """
+    try:
+        # 1. Get the JSON payload from OnlyOffice
+        data = request.get_json(force=True, silent=True)
+        if not data:
+            abort(400, "No JSON payload")
+
+        # 2. Check for the JWT in the *payload* (this is how OO does it)
+        if 'token' not in data:
+            abort(403, "Missing token in payload")
+        
+        token = data.get('token')
+        
+        # 3. Verify the JWT
+        try:
+            payload = jwt.decode(token, ONLYOFFICE_JWT_SECRET, algorithms=['HS256'])
+        except jwt.InvalidTokenError as e:
+            abort(403, f"Invalid JWT token: {e}")
+
+        # 4. Check the status. 2 means "ready to save"
+        status = payload.get('status')
+        if status == 2 or status == 6: # 2 = Ready, 6 = Must Save
+            # 5. Get the path from the query param we set
+            rel_path = request.args.get('path')
+            if not rel_path:
+                abort(400, "Missing path parameter in callback URL")
+            
+            target_file = _safe_join(rel_path)
+
+            # 6. Download the *new* file from the OO server's temp URL
+            saved_file_url = payload.get('url')
+            if not saved_file_url:
+                 abort(400, "No file URL in save payload")
+
+            req = urllib.request.Request(saved_file_url)
+            with urllib.request.urlopen(req) as r:
+                # 7. Overwrite the original file
+                with open(target_file, 'wb') as f:
+                    f.write(r.read())
+        elif status == 7:
+            # Error saving, but we still need to respond OK
+            print(f"OnlyOffice save error for {request.args.get('path')}: Status 7")
+
+        # 8. Tell OnlyOffice "OK"
+        return jsonify({"error": 0})
+        
+    except Exception as e:
+        print(f"OnlyOffice Save Error: {e}")
+        return jsonify({"error": 1, "message": str(e)}), 500
+# ---------------------------
+
 # ==================== JSON error formatting ====================
 @app.errorhandler(400)
 @app.errorhandler(403)

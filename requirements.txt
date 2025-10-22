@@ -4,4 +4,5 @@ eventlet==0.33.3
 python-pam
 psutil
 yt-dlp
+PyJWT
 

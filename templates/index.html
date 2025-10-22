@@ -658,6 +658,14 @@ function escapeHTML(str){
 async function openPreview(path){
   const ext = (path.split('.').pop() || '').toLowerCase();
   const rawUrl = '/api/download?path='+encodeURIComponent(path);
+
+  const OFFICE_EXTS = ['doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'odt', 'ods', 'odp'];
+  if (OFFICE_EXTS.includes(ext)) {
+    // Open our new editor page in a new tab
+    window.open('/editor/' + encodeURIComponent(path), '_blank');
+    return; // Stop the rest of the function
+  }
+  
   try{
     if(['png','jpg','jpeg','gif','webp','bmp','svg'].includes(ext)){
       const u = await blobURL(rawUrl);
