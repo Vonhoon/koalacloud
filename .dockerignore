@@ -25,6 +25,7 @@ share.db-journal
 # Deployment script
 deploy.sh
 .version
+docker-compose.yaml
 
 #tarball
 *.tar.gz

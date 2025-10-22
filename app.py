@@ -26,7 +26,7 @@ from werkzeug.middleware.proxy_fix import ProxyFix
 import threading
 import yt_dlp
 import jwt
-from urllib.parse import urljoin
+from urllib.parse import urljoin, quote
 # -------------------
 
 # ==================== Config ====================
@@ -60,6 +60,7 @@ ONLYOFFICE_JWT_SECRET   = os.getenv('ONLYOFFICE_JWT_SECRET', 'this-is-unsafe-cha
 ONLYOFFICE_DOCS_URL     = os.getenv('ONLYOFFICE_DOCS_URL', 'http://localhost:8080') # Internal Docker URL
 ONLYOFFICE_PUBLIC_URL = os.getenv('ONLYOFFICE_PUBLIC_URL', 'http://localhost:8080') # Public-facing URL
 KOALA_PUBLIC_URL      = os.getenv('KOALA_PUBLIC_URL', 'http://localhost:5000')
+KOALA_INTERNAL_URL = os.getenv('KOALA_INTERNAL_URL', KOALA_PUBLIC_URL)
 # ---------------------------
 
 # ==================== App ====================
@@ -989,11 +990,11 @@ def onlyoffice_editor(rel_path):
             conn.commit()
         
         # This is the URL the OnlyOffice *server* will use to download the file
-        file_url = urljoin(KOALA_PUBLIC_URL, f'/s/{token}')
+        file_url = urljoin(KOALA_INTERNAL_URL, f'/s/{token}')
 
         # 2. This is the URL the OnlyOffice *server* will POST to when saving
         #    We must pass our original path in the query string so we know what to save
-        callback_url = urljoin(KOALA_PUBLIC_URL, f'/api/onlyoffice/save?path={rel_path}')
+        callback_url = urljoin(KOALA_INTERNAL_URL, f'/api/onlyoffice/save?path={quote(rel_path)}')
         
         # 3. Create a unique key for this file version (prevents caching issues)
         file_key = f"{p.stat().st_mtime}-{p.stat().st_size}-{p.name}"
@@ -1020,11 +1021,11 @@ def onlyoffice_editor(rel_path):
         # Auto-detect documentType based on extension
         ext = p.suffix.lstrip('.').lower()
         if ext in ['doc', 'docx', 'odt', 'rtf', 'txt']:
-            config['documentType'] = 'text'
+            config['documentType'] = 'word'
         elif ext in ['xls', 'xlsx', 'ods', 'csv']:
-            config['documentType'] = 'spreadsheet'
+            config['documentType'] = 'cell'
         elif ext in ['ppt', 'pptx', 'odp']:
-            config['documentType'] = 'presentation'
+            config['documentType'] = 'slide'
         
         # 5. Sign the config with the JWT secret
         # The OO server *requires* this token to be in the main config
