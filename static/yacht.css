@@ -4,11 +4,12 @@
 
 :root {
   --accent: #0ea5e9;
+  --accent-2: #0284c7; 
   --bg-light: #f8fafc;
   --border: #e5e7eb;
   --ink: #0f172a;
   --ink-light: #64748b;
-  --kept: #fef08a; /* Yellow for kept dice */
+  --kept: #fef08a; 
   --kept-border: #facc15;
 }
 
@@ -19,13 +20,52 @@ html, body {
   background-color: var(--bg-light);
   margin: 0;
   padding: 0;
-  overflow: hidden; /* Prevent scrolling */
+  overflow: hidden; 
   height: 100%;
   width: 100%;
 }
 
 .hidden {
   display: none !important;
+}
+
+/* --- Mode Selection Screen --- */
+#mode-selection-screen {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  width: 100%;
+  padding: 2rem;
+  text-align: center;
+}
+#mode-selection-screen p {
+  color: var(--ink-light); 
+  margin-bottom: 2rem;
+}
+.mode-btn {
+  width: 100%;
+  max-width: 300px;
+  padding: 1rem;
+  font-size: 1.2rem;
+  font-weight: 600;
+  margin: 0.5rem 0;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  cursor: pointer;
+  background-color: #fff;
+}
+.mode-btn.primary {
+  background-color: var(--accent);
+  color: white;
+  border-color: var(--accent);
+}
+.mode-btn:hover {
+  background-color: var(--bg-light);
+}
+.mode-btn.primary:hover {
+  background-color: var(--accent-2);
 }
 
 /* --- Waiting Screen --- */
@@ -56,7 +96,7 @@ html, body {
   100% { transform: rotate(360deg); }
 }
 
-/* --- Game Screen --- */
+/* --- MODIFIED: Game Screen (Main Layout) --- */
 #game-screen {
   width: 100%;
   height: 100%;
@@ -64,20 +104,42 @@ html, body {
   flex-direction: column;
 }
 
-/* p5.js canvas will go here */
+/* --- MODIFIED: Score Sheet (Top 70%) --- */
+#score-sheet {
+  position: relative; 
+  width: 100%;
+  background: white;
+  border-bottom: 2px solid var(--border);
+  flex: 7; /* 70% height */
+  overflow: hidden; 
+  display: flex; 
+  flex-direction: column; 
+}
+
+/* --- MODIFIED: Game Area (Bottom 30%) --- */
+#game-area {
+  flex: 3; /* 30% height */
+  display: flex;
+  flex-direction: column;
+  min-height: 0; 
+}
+
+/* --- p5.js canvas will go here --- */
 #canvas-container {
-  flex-grow: 1; /* Take up all space except controls */
+  flex-grow: 1; 
   display: flex;
   align-items: center;
   justify-content: center;
   overflow: hidden;
-  touch-action: none; /* Prevent browser gestures on canvas */
+  touch-action: none; 
+  min-height: 50px; 
 }
 canvas {
   max-width: 100%;
   max-height: 100%;
 }
 
+/* --- Game Controls --- */
 #game-controls {
   flex-shrink: 0;
   display: flex;
@@ -86,13 +148,14 @@ canvas {
   padding: 1rem;
   background: white;
   border-top: 1px solid var(--border);
-  gap: 0.5rem;
+  gap: 1rem;
 }
 #turn-indicator {
   margin: 0;
   font-size: 1.1rem;
   font-weight: 600;
   flex-shrink: 0;
+  white-space: nowrap;
 }
 .game-btn {
   border: 1px solid var(--border);
@@ -104,7 +167,7 @@ canvas {
   font-weight: 500;
   cursor: pointer;
   transition: background-color 0.2s;
-  -webkit-tap-highlight-color: transparent; /* Remove tap flash */
+  -webkit-tap-highlight-color: transparent; 
 }
 .game-btn:hover {
   background-color: var(--bg-light);
@@ -123,83 +186,77 @@ canvas {
   background: #eee;
 }
 #roll-button {
-  flex-grow: 1; /* Take up remaining space */
+  flex-grow: 1; 
 }
 
-/* --- Score Sheet --- */
-#score-sheet {
-  position: fixed;
-  right: -100%; /* Start off-screen */
-  top: 0;
-  width: 100%;
-  max-width: 400px;
-  height: 100%;
-  background: white;
-  box-shadow: -3px 0 12px rgba(0, 0, 0, 0.1);
-  transition: right 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
-  z-index: 100;
+/* --- MODIFIED: Score Table Styles --- */
+#score-header-row {
   display: flex;
-  flex-direction: column;
-}
-#score-sheet.slide-in {
-  right: 0; /* Slide it in */
-}
-
-#score-header {
-  display: flex;
-  align-items: center;
-  padding: 0.75rem 1rem;
+  flex-shrink: 0; 
+  padding: 0.5rem 1rem 0.25rem 1rem;
   border-bottom: 1px solid var(--border);
-  flex-shrink: 0;
-}
-#score-header h3 {
-  margin: 0 auto;
-  font-size: 1.1rem;
-}
-#score-sheet-close {
-  font-size: 1.75rem;
-  font-weight: 300;
-  background: none;
-  border: none;
-  cursor: pointer;
-  padding: 0.25rem 0.5rem;
-  line-height: 1;
-}
-
-.score-column-container {
-  display: flex;
-  flex-grow: 1;
-  overflow-y: auto; /* Make scores scrollable */
-  padding: 1rem;
-  gap: 1rem;
-}
-.score-column {
-  width: 50%;
-}
-.score-column h4 {
-  margin: 0 0 0.5rem 0;
-  border-bottom: 1px solid var(--border);
-  padding-bottom: 0.5rem;
-  font-size: 1rem;
-}
-.score-column h5 {
-  margin: 0.75rem 0 0.25rem 0;
-  font-size: 0.9rem;
+  font-weight: 600;
   color: var(--ink-light);
+  font-size: clamp(12px, 1.8vh, 15px);
 }
 
-.score-category {
+#score-table-body {
+  flex: 1; 
+  overflow-y: auto; /* Fallback scrolling */
+  padding: 0 1rem 0.5rem 1rem; 
+  min-height: 0;
+}
+
+.score-section-header {
   display: flex;
   justify-content: space-between;
-  padding: 0.5rem 0.25rem;
-  font-size: 0.95rem;
+  margin: 0.25rem 0;
+  font-size: clamp(11px, 1.8vh, 14px);
+  color: var(--ink-light);
+  font-weight: 600;
+}
+.score-section-header span:first-child {
+  flex-basis: 40%;
+}
+.score-section-header span:nth-child(2) {
+  flex-basis: 30%;
+  text-align: right;
+}
+.score-section-header span:nth-child(3) {
+  flex-basis: 30%;
+  text-align: right;
+}
+
+/* Base styles for all score rows */
+.score-category,
+.score-subtotal,
+.score-total {
+  display: flex;
   border-radius: 4px;
 }
-.score-category span {
+
+/* Column widths */
+.col-category {
+  flex-basis: 40%;
+  font-weight: 500;
+}
+.col-my-score,
+.col-opp-score {
+  flex-basis: 30%;
+  text-align: right;
   font-weight: 600;
 }
 
-/* Score category states */
+/* Category row styles */
+.score-category {
+  padding: clamp(3px, 0.5vh, 6px) 0.5rem;
+  font-size: clamp(12px, 1.9vh, 15px);
+}
+.col-my-score {
+  color: var(--accent-2);
+}
+
+/* Category states */
 .score-category.estimated {
   background-color: #e0f2fe; /* Light blue */
   cursor: pointer;
@@ -207,20 +264,69 @@ canvas {
 .score-category.estimated:hover {
   background-color: #bae6fd;
 }
-.score-category.locked {
-  color: var(--ink-light);
-}
-.score-category.locked span {
+.score-category.locked .col-my-score,
+.score-category.locked .col-opp-score {
   color: var(--ink);
 }
+.score-category.locked .col-category {
+  color: var(--ink-light);
+}
 
-.score-subtotal {
-  display: flex;
-  justify-content: space-between;
-  font-size: 0.9rem;
+/* Subtotal / Total rows */
+.score-subtotal,
+.score-total {
+  font-size: clamp(12px, 1.8vh, 15px);
   font-weight: 600;
-  color: var(--accent);
-  padding: 0.5rem 0.25rem;
-  border-top: 1px solid var(--border);
+  padding: clamp(3px, 0.5vh, 6px) 0.5rem;
   margin-top: 0.25rem;
+  border-top: 1px solid var(--border);
+}
+.score-subtotal {
+  color: var(--accent);
+}
+.score-total {
+  font-size: clamp(14px, 2.1vh, 18px);
+  color: var(--ink);
+  border-top: 2px solid var(--ink);
+}
+
+
+/* --- Confetti Styles --- */
+#confetti-container {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  pointer-events: none; 
+  z-index: 9999;
+}
+.confetti-particle {
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  top: -20px; 
+  animation: fall 2s linear forwards;
+}
+.confetti-particle.circle {
+  border-radius: 50%;
+}
+.confetti-particle.triangle {
+  width: 0;
+  height: 0;
+  background-color: transparent !important;
+  border-left: 6px solid transparent;
+  border-right: 6px solid transparent;
+  border-bottom: 10px solid red; 
+}
+@keyframes fall {
+  0% {
+    transform: translateY(0) rotateZ(0deg);
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(100vh) rotateZ(720deg); 
+    opacity: 0;
+  }
 }

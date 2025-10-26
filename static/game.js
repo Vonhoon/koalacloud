@@ -6,6 +6,7 @@
 
 // --- Game State ---
 let socket;
+let isSinglePlayer = false; 
 let opponent_sid = null;
 let myTurn = false;
 let gameOver = false;
@@ -20,50 +21,88 @@ const CATEGORIES = [
 ];
 let myScorecard = {};
 let opponentScorecard = {};
-CATEGORIES.forEach(cat => {
-  myScorecard[cat] = null;
-  opponentScorecard[cat] = null;
-});
+function resetScorecards() { 
+  CATEGORIES.forEach(cat => {
+    myScorecard[cat] = null;
+    opponentScorecard[cat] = null;
+  });
+}
 
 // --- DOM Elements ---
-let waitingScreen, gameScreen, scoreSheet, rollButton, shakeButton, scoreTabButton, scoreSheetClose, turnIndicator, connectionStatus;
+let modeSelectionScreen, waitingScreen, gameScreen, rollButton, turnIndicator, connectionStatus;
+// NEW: Scoreboard headers
+let myScoreHeaderLabel, oppScoreHeaderLabel;
+
 
 // --- Entry Point ---
-window.onload = function() {
+document.addEventListener('DOMContentLoaded', function() {
   // Get all DOM elements
+  modeSelectionScreen = document.getElementById('mode-selection-screen');
   waitingScreen = document.getElementById('waiting-screen');
   gameScreen = document.getElementById('game-screen');
-  scoreSheet = document.getElementById('score-sheet');
   rollButton = document.getElementById('roll-button');
-  shakeButton = document.getElementById('shake-button');
-  scoreTabButton = document.getElementById('score-tab-button');
-  scoreSheetClose = document.getElementById('score-sheet-close');
   turnIndicator = document.getElementById('turn-indicator');
   connectionStatus = document.getElementById('connection-status');
+  
+  // NEW: Scoreboard header labels
+  myScoreHeaderLabel = document.getElementById('my-score-header-label');
+  oppScoreHeaderLabel = document.getElementById('opp-score-header-label');
 
   // --- Setup Button Clicks ---
-  rollButton.onclick = onRollClicked;
-  shakeButton.onclick = onShakeClicked;
-  scoreTabButton.onclick = onScoreTabClicked;
-  scoreSheetClose.onclick = onScoreTabClicked; // Also closes
+  
+  document.getElementById('btn-single-player').onclick = startGameSinglePlayer;
+  document.getElementById('btn-multiplayer').onclick = startGameMultiplayer;
 
+  rollButton.onclick = onRollClicked;
+  
   // Add click listeners to all *my* score categories
-  document.querySelectorAll('#my-score-column .score-category').forEach(el => {
+  document.querySelectorAll('.score-category').forEach(el => {
     el.onclick = () => onScoreCategoryClicked(el.dataset.category);
   });
+});
 
-  // --- Connect to Server ---
-  connectionStatus.textContent = 'Connecting to server...';
+// --- Game Mode Start Functions ---
+
+function startGameSinglePlayer() {
+  isSinglePlayer = true;
+  modeSelectionScreen.classList.add('hidden');
+  gameScreen.classList.remove('hidden');
+  
+  // Set opponent name to "AI"
+  myScoreHeaderLabel.textContent = "나의 점수";
+  oppScoreHeaderLabel.textContent = "AI 점수";
+
+  setTimeout(() => {
+    if (typeof sketch_initCanvas === 'function') {
+        sketch_initCanvas();
+    }
+  }, 0);
+  
+  resetScorecards();
+  myTurn = true; // Player always starts
+  startNewTurn();
+}
+
+function startGameMultiplayer() {
+  isSinglePlayer = false;
+  modeSelectionScreen.classList.add('hidden');
+  waitingScreen.classList.remove('hidden');
+  
+  // Set opponent name
+  myScoreHeaderLabel.textContent = "나의 점수";
+  oppScoreHeaderLabel.textContent = "상대 점수";
+
+  connectionStatus.textContent = '서버에 연결 중...';
   socket = io();
 
   // --- Socket.IO Listeners ---
   socket.on('connect', () => {
-    connectionStatus.textContent = 'Connected. Finding game...';
+    connectionStatus.textContent = '연결됨. 게임 찾는 중...';
     socket.emit('find_game');
   });
 
   socket.on('waiting_for_opponent', () => {
-    connectionStatus.textContent = 'Waiting for an opponent...';
+    connectionStatus.textContent = '상대방을 기다리는 중...';
   });
 
   socket.on('game_start', (data) => {
@@ -72,28 +111,30 @@ window.onload = function() {
     
     waitingScreen.classList.add('hidden');
     gameScreen.classList.remove('hidden');
+    
     setTimeout(() => {
         if (typeof sketch_initCanvas === 'function') {
             sketch_initCanvas();
         }
     }, 0);
-    startNewTurn(); // Resets dice and UI
+    
+    resetScorecards();
+    startNewTurn(); 
   });
   
   socket.on('action_from_opponent', (action) => {
-    if (gameOver) return;
+    if (gameOver || isSinglePlayer) return;
     
     switch (action.type) {
       case 'roll':
         dice = action.dice;
-        sketch_setDice(dice); // Tell p5.js to draw
+        sketch_setDice(dice); 
         break;
       case 'keep':
         kept = action.kept;
-        sketch_setKept(kept); // Tell p5.js to draw
+        sketch_setKept(kept); 
         break;
       case 'score':
-        // Opponent has scored and ended their turn
         opponentScorecard[action.category] = action.score;
         myTurn = true;
         startNewTurn();
@@ -105,7 +146,7 @@ window.onload = function() {
   
   socket.on('player_disconnected', (data) => {
     if (data.sid === opponent_sid) {
-      alert('Opponent disconnected. Game over.');
+      alert('상대방의 연결이 끊겼습니다. 게임 종료.');
       gameOver = true;
       myTurn = false;
       updateUI();
@@ -113,9 +154,9 @@ window.onload = function() {
   });
 
   socket.on('disconnect', () => {
-    connectionStatus.textContent = 'Disconnected from server.';
+    connectionStatus.textContent = '서버와 연결이 끊겼습니다.';
     if (!gameOver) {
-      alert('Connection lost. Please refresh.');
+      alert('연결이 끊겼습니다. 새로고침 해주세요.');
       gameOver = true;
       myTurn = false;
       updateUI();
@@ -124,62 +165,55 @@ window.onload = function() {
 }
 
 // --- Button Click Handlers ---
+
 function onRollClicked() {
   if (!myTurn || rollsLeft === 0 || gameOver) return;
 
-  // 1. Start shake animation
-  sketch_startShakeAnimation();
+  rollsLeft--;
   
-  // 2. Wait for animation
-  setTimeout(() => {
-    rollsLeft--;
-    
-    // 3. Calculate new dice values
-    for (let i = 0; i < 5; i++) {
-      if (!kept[i]) {
-        dice[i] = Math.floor(Math.random() * 6) + 1;
-      }
+  for (let i = 0; i < 5; i++) {
+    if (!kept[i]) {
+      dice[i] = Math.floor(Math.random() * 6) + 1;
     }
-    
-    // 4. Update my UI
-    sketch_setDice(dice);
-    updateUI();
-    sendAction({ type: 'roll', dice: dice });
-    
-    // 5. If 0 rolls left, force scores open
-    if (rollsLeft === 0) {
-      showEstimatedScores();
-      scoreSheet.classList.add('slide-in');
+  }
+  
+  sketch_setDice(dice);
+  
+  // --- YACHT CHECK ---
+  if (myScorecard['yacht'] === null) {
+    const yachtScore = calculateScore('yacht', dice);
+    if (yachtScore === 50) {
+      triggerConfetti(); 
+      rollsLeft = 0; 
+      kept = [true, true, true, true, true]; 
+      sketch_setKept(kept);
+      updateUI(); 
+      
+      setTimeout(() => {
+        onScoreCategoryClicked('yacht');
+      }, 2000); 
+      
+      return; 
     }
-  }, 500); // Wait for shake animation
-}
-
-function onShakeClicked() {
-  if (myTurn && rollsLeft > 0 && !gameOver) {
-    sketch_startShakeAnimation();
   }
-}
+  // --- END YACHT CHECK ---
 
-function onScoreTabClicked() {
-  scoreSheet.classList.toggle('slide-in');
-  if (myTurn && rollsLeft < 3) {
-    showEstimatedScores();
-  } else {
-    clearEstimatedScores();
-  }
+  updateUI();
+  sendAction({ type: 'roll', dice: dice });
+  
+  showEstimatedScores();
 }
 
 // --- Functions called BY sketch.js ---
 function game_onDieClicked(index) {
+  // Check p5Dice[i] exists before trying to access it
+  if (!p5Dice[index]) return; 
+
   if (!myTurn || rollsLeft === 3 || rollsLeft === 0 || gameOver) return;
   
   kept[index] = !kept[index];
-  sketch_setKept(kept); // Update p5.js
+  sketch_setKept(kept); 
   sendAction({ type: 'keep', kept: kept });
-}
-
-function game_onDeviceShake() {
-  onShakeClicked();
 }
 
 // --- Game Logic Functions ---
@@ -188,41 +222,47 @@ function showEstimatedScores() {
   for (const category of CATEGORIES) {
     if (myScorecard[category] === null) {
       const score = calculateScore(category, dice);
+      // Update the correct span
       const el = document.getElementById(`my-${category}`);
-      el.classList.add('estimated');
-      el.querySelector('span').textContent = score;
+      if (el) {
+        el.textContent = score;
+        el.parentElement.classList.add('estimated');
+      }
     }
   }
 }
 
 function clearEstimatedScores() {
-  document.querySelectorAll('#my-score-column .score-category.estimated').forEach(el => {
+  document.querySelectorAll('.score-category.estimated').forEach(el => {
     el.classList.remove('estimated');
-    // If not locked, reset text to '-'
     const category = el.dataset.category;
     if (myScorecard[category] === null) {
-      el.querySelector('span').textContent = '-';
+      // Find the "my-score" span inside this element
+      const scoreSpan = el.querySelector(`#my-${category}`);
+      if (scoreSpan) {
+        scoreSpan.textContent = '-';
+      }
     }
   });
 }
 
 function onScoreCategoryClicked(category) {
-  if (!myTurn || rollsLeft === 3 || gameOver) return;
-  if (myScorecard[category] !== null) return; // Already taken
+  if (!myTurn || rollsLeft === 3 || gameOver) return; 
+  if (myScorecard[category] !== null) return; 
   
-  // 1. Lock in the score
   const score = calculateScore(category, dice);
   myScorecard[category] = score;
 
-  // 2. Tell opponent
   sendAction({ type: 'score', category: category, score: score });
   
-  // 3. End my turn
   myTurn = false;
-  scoreSheet.classList.remove('slide-in');
   startNewTurn();
   checkGameOver();
   updateUI();
+  
+  if (isSinglePlayer && !gameOver) {
+    setTimeout(ai_takeTurn, 1000); 
+  }
 }
 
 function startNewTurn() {
@@ -230,7 +270,6 @@ function startNewTurn() {
   dice = [1, 1, 1, 1, 1];
   kept = [false, false, false, false, false];
   
-  // Don't set dice for opponent's turn, just reset UI
   if (myTurn) {
     sketch_setDice(dice);
   }
@@ -240,83 +279,122 @@ function startNewTurn() {
 }
 
 function updateUI() {
-  // Update roll button
-  rollButton.textContent = `Roll (${rollsLeft})`;
+  rollButton.textContent = `굴리기 (${rollsLeft})`;
   rollButton.disabled = !myTurn || rollsLeft === 0 || gameOver;
-  shakeButton.disabled = !myTurn || rollsLeft === 0 || gameOver;
 
-  // Update turn indicator
+  // Update Scoreboard
+  updateScoreboard();
+
+  // Update Turn Indicator
   if (gameOver) {
     const myTotal = calculateTotalScore(myScorecard);
     const oppTotal = calculateTotalScore(opponentScorecard);
     if (myTotal > oppTotal) {
-      turnIndicator.textContent = "You Win!";
+      turnIndicator.textContent = "승리!";
     } else if (oppTotal > myTotal) {
-      turnIndicator.textContent = "You Lose.";
+      turnIndicator.textContent = "패배.";
     } else {
-      turnIndicator.textContent = "It's a Tie!";
+      turnIndicator.textContent = "무승부!";
     }
   } else if (myTurn) {
-    turnIndicator.textContent = "Your Turn";
+    turnIndicator.textContent = "내 차례";
   } else {
-    turnIndicator.textContent = "Opponent's Turn";
+    turnIndicator.textContent = isSinglePlayer ? "AI 차례" : "상대방 차례";
   }
-  
-  // Update scorecards
-  updateScorecardUI('my', myScorecard);
-  updateScorecardUI('opp', opponentScorecard);
 }
 
-function updateScorecardUI(prefix, scorecard) {
-  let upperTotal = 0;
-  let lowerTotal = 0;
+// NEW: Unified scoreboard update function
+function updateScoreboard() {
+  let myUpperTotal = 0;
+  let myLowerTotal = 0;
+  let oppUpperTotal = 0;
+  let oppLowerTotal = 0;
 
+  // Update all category rows
   for (const category of CATEGORIES) {
-    const score = scorecard[category];
-    const el = document.getElementById(`${prefix}-${category}`);
-    if (score !== null) {
-      el.classList.add('locked');
-      el.querySelector('span').textContent = score;
-      
-      // Add to totals
-      if (['aces', 'twos', 'threes', 'fours', 'fives', 'sixes'].includes(category)) {
-        upperTotal += score;
+    const myScore = myScorecard[category];
+    const oppScore = opponentScorecard[category];
+    
+    const myEl = document.getElementById(`my-${category}`);
+    const oppEl = document.getElementById(`opp-${category}`);
+    const rowEl = myEl ? myEl.parentElement : null;
+
+    if (myEl && oppEl && rowEl) {
+      // Update my score
+      if (myScore !== null) {
+        myEl.textContent = myScore;
+        rowEl.classList.add('locked');
+        if (['aces', 'twos', 'threes', 'fours', 'fives', 'sixes'].includes(category)) {
+          myUpperTotal += myScore;
+        } else {
+          myLowerTotal += myScore;
+        }
+      } else if (!rowEl.classList.contains('estimated')) {
+        myEl.textContent = '-';
+      }
+
+      // Update opponent's score
+      if (oppScore !== null) {
+        oppEl.textContent = oppScore;
+        if (['aces', 'twos', 'threes', 'fours', 'fives', 'sixes'].includes(category)) {
+          oppUpperTotal += oppScore;
+        } else {
+          oppLowerTotal += oppScore;
+        }
       } else {
-        lowerTotal += score;
+        oppEl.textContent = '-';
+      }
+
+      // Manage 'locked' state (only applies to *my* side)
+      if (myScore === null) {
+        rowEl.classList.remove('locked');
       }
     }
   }
   
-  document.getElementById(`${prefix}-upper-total`).textContent = upperTotal;
+  // Update Upper Totals
+  document.getElementById('my-upper-total').textContent = myUpperTotal;
+  document.getElementById('opp-upper-total').textContent = oppUpperTotal;
+
+  // Update Bonuses
+  let myBonus = (myUpperTotal >= 63) ? 35 : 0;
+  let oppBonus = (oppUpperTotal >= 63) ? 35 : 0;
+  document.getElementById('my-upper-bonus').textContent = `+${myBonus}`;
+  document.getElementById('opp-upper-bonus').textContent = `+${oppBonus}`;
   
-  // Check for upper bonus
-  let bonus = 0;
-  if (upperTotal >= 63) {
-    bonus = 35;
-    document.getElementById(`${prefix}-upper-bonus`).querySelector('span').textContent = `+${bonus}`;
-  } else {
-    document.getElementById(`${prefix}-upper-bonus`).querySelector('span').textContent = `+0`;
-  }
+  // Update Lower Totals
+  document.getElementById('my-lower-total').textContent = myLowerTotal;
+  document.getElementById('opp-lower-total').textContent = oppLowerTotal;
   
-  document.getElementById(`${prefix}-lower-total`).textContent = lowerTotal;
-  document.getElementById(`${prefix}-total-score`).textContent = upperTotal + lowerTotal + bonus;
+  // Update Grand Totals
+  document.getElementById('my-total-score').textContent = myUpperTotal + myLowerTotal + myBonus;
+  document.getElementById('opp-total-score').textContent = oppUpperTotal + oppLowerTotal + oppBonus;
 }
 
+
 function checkGameOver() {
-  // Check if all categories in *my* scorecard are filled
   for (const category of CATEGORIES) {
     if (myScorecard[category] === null) {
-      return; // Not over yet
+      return; 
     }
   }
-  // If we get here, my board is full. The opponent just finished their last turn.
+  
+  // NEW: Also check opponent's card in single player
+  if (isSinglePlayer) {
+    for (const category of CATEGORIES) {
+      if (opponentScorecard[category] === null) {
+        return; 
+      }
+    }
+  }
+
   gameOver = true;
   myTurn = false;
   updateUI();
 }
 
 function sendAction(actionObject) {
-  if (gameOver) return;
+  if (gameOver || isSinglePlayer) return; 
   socket.emit('game_action', {
     opponent_sid: opponent_sid,
     action: actionObject
@@ -324,16 +402,15 @@ function sendAction(actionObject) {
 }
 
 // --- YACHT SCORING LOGIC ---
-
 function calculateScore(category, dice) {
-  const counts = {}; // Count occurrences of each die
+  const counts = {}; 
   let sum = 0;
   for (const die of dice) {
     counts[die] = (counts[die] || 0) + 1;
     sum += die;
   }
   const sortedDice = [...dice].sort();
-  const uniqueDice = Object.keys(counts).map(Number);
+  const uniqueDice = Object.keys(counts).map(Number).sort().join('');
   const countsArr = Object.values(counts);
 
   switch (category) {
@@ -358,14 +435,13 @@ function calculateScore(category, dice) {
       return 0;
       
     case 'small_straight':
-      // Check for 1,2,3,4 or 2,3,4,5 or 3,4,5,6
-      if (uniqueDice.join('').includes('1234')) return 30;
-      if (uniqueDice.join('').includes('2345')) return 30;
-      if (uniqueDice.join('').includes('3456')) return 30;
+      if (uniqueDice.includes('1234') || uniqueDice.includes('2345') || uniqueDice.includes('3456')) {
+        return 30;
+      }
       return 0;
 
     case 'large_straight':
-      if (uniqueDice.join('') === '12345' || uniqueDice.join('') === '23456') {
+      if (uniqueDice === '12345' || uniqueDice === '23456') {
         return 40;
       }
       return 0;
@@ -394,4 +470,158 @@ function calculateTotalScore(scorecard) {
   }
   let bonus = (upperTotal >= 63) ? 35 : 0;
   return upperTotal + lowerTotal + bonus;
+}
+
+
+// --- AI LOGIC ---
+let aiRollsLeft = 3;
+let aiKept = [false, false, false, false, false];
+let aiDice = [1, 1, 1, 1, 1];
+
+function ai_takeTurn() {
+  if (myTurn || gameOver) return;
+  
+  aiRollsLeft = 3;
+  aiKept = [false, false, false, false, false];
+  aiDice = [1, 1, 1, 1, 1];
+  sketch_setKept(aiKept);
+  
+  ai_roll();
+}
+
+function ai_roll() {
+  aiRollsLeft--;
+
+  for (let i = 0; i < 5; i++) {
+    if (!aiKept[i]) {
+      aiDice[i] = Math.floor(Math.random() * 6) + 1;
+    }
+  }
+  sketch_setDice(aiDice);
+  
+  if (aiRollsLeft > 0) {
+    const decision = ai_decideKeep(aiDice);
+    aiKept = decision.kept;
+    sketch_setKept(aiKept);
+    
+    setTimeout(ai_roll, 1500); 
+  } else {
+    setTimeout(ai_score, 1500);
+  }
+}
+
+function ai_decideKeep(dice) {
+  const available = CATEGORIES.filter(cat => opponentScorecard[cat] === null);
+  
+  // 1. Check for immediate high scores
+  for (const cat of available) {
+    const score = calculateScore(cat, dice);
+    if (cat === 'yacht' && score === 50) {
+      return { category: 'yacht', score: 50, kept: [true,true,true,true,true] };
+    }
+    if (cat === 'large_straight' && score === 40) {
+      return { category: 'large_straight', score: 40, kept: [true,true,true,true,true] };
+    }
+    if (cat === 'full_house' && score === 25) {
+      return { category: 'full_house', score: 25, kept: [true,true,true,true,true] };
+    }
+  }
+  
+  // 2. Decide what to hold
+  const counts = {};
+  for (const die of dice) { counts[die] = (counts[die] || 0) + 1; }
+  
+  let maxCount = 0;
+  let dieToKeep = 0;
+  for (let i = 6; i >= 1; i--) { 
+    if ((counts[i] || 0) >= maxCount) {
+      maxCount = counts[i];
+      dieToKeep = i;
+    }
+  }
+
+  let newKept = [false, false, false, false, false];
+  if (maxCount > 1) { 
+    for (let i = 0; i < 5; i++) {
+      if (dice[i] === dieToKeep) {
+        newKept[i] = true;
+      }
+    }
+  }
+  
+  return { kept: newKept };
+}
+
+function ai_score() {
+  const available = CATEGORIES.filter(cat => opponentScorecard[cat] === null);
+  let bestCategory = 'chance';
+  let maxScore = -1; // Use -1 to allow 0 scores
+
+  for (const cat of available) {
+    const score = calculateScore(cat, aiDice);
+    if (score > maxScore) {
+      maxScore = score;
+      bestCategory = cat;
+    }
+  }
+  
+  if (maxScore <= 0) {
+    maxScore = 0; // Ensure score is 0, not -1
+    // Sacrifice an upper category if available
+    const upperSacrifice = ['aces', 'twos', 'threes'].find(cat => available.includes(cat));
+    if (upperSacrifice) {
+      bestCategory = upperSacrifice;
+    } else if (available.includes('chance')) {
+      bestCategory = 'chance';
+    } else {
+      bestCategory = available[0]; 
+    }
+  }
+  
+  opponentScorecard[bestCategory] = maxScore;
+  
+  myTurn = true;
+  startNewTurn();
+  checkGameOver();
+}
+
+// --- Confetti Function ---
+function triggerConfetti() {
+  const container = document.getElementById('confetti-container');
+  if (!container) return;
+
+  const particleCount = 100; 
+  const shapes = ['square', 'circle', 'triangle'];
+  const colors = [
+    '#0ea5e9', 
+    '#facc15', 
+    '#f87171', 
+    '#4ade80', 
+    '#a78bfa'  
+  ];
+
+  for (let i = 0; i < particleCount; i++) {
+    const particle = document.createElement('div');
+    
+    const shape = shapes[Math.floor(Math.random() * shapes.length)];
+    particle.className = `confetti-particle ${shape}`;
+    
+    const color = colors[Math.floor(Math.random() * colors.length)];
+    if (shape === 'triangle') {
+      particle.style.borderBottomColor = color;
+    } else {
+      particle.style.backgroundColor = color;
+    }
+    
+    particle.style.left = Math.random() * 100 + 'vw';
+    
+    particle.style.animationDelay = Math.random() * 0.5 + 's';
+    particle.style.animationDuration = (Math.random() * 1.5 + 1) + 's';
+
+    container.appendChild(particle);
+    
+    setTimeout(() => {
+      particle.remove();
+    }, 2500);
+  }
 }

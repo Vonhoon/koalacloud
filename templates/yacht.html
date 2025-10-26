@@ -3,93 +3,141 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no" />
-  <title>Yacht Dice</title>
+  <title>요트 다이스</title>
   
   <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.5/socket.io.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.4/p5.js"></script>
   
   <link rel="stylesheet" href="{{ url_for('static', filename='yacht.css') }}">
-  <script src="{{ url_for('static', filename='sketch.js') }}"></script>
-  <script src="{{ url_for('static', filename='game.js') }}"></script>
+  <script src="{{ url_for('static', filename='sketch.js') }}" defer></script>
+  <script src="{{ url_for('static', filename='game.js') }}" defer></script>
 
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 </head>
 <body>
 
-  <div id="waiting-screen">
+  <div id="confetti-container"></div>
+
+  <div id="mode-selection-screen">
+    <img src="{{ url_for('static', filename='koala.jpg') }}" alt="Koala Logo" style="width: 100px; height: 100px; border-radius: 20px; margin-bottom: 1.5rem;">
+    <h2>요트 다이스</h2>
+    <p>플레이할 모드를 선택하세요.</p>
+    <button id="btn-single-player" class="mode-btn">혼자하기 (AI 대전)</button>
+    <button id="btn-multiplayer" class="mode-btn primary">함께하기 (온라인)</button>
+  </div>
+  
+  <div id="waiting-screen" class="hidden"> 
     <div class="spinner"></div>
-    <h1>Finding an opponent...</h1>
+    <h1>상대를 찾는 중...</h1>
     <p id="connection-status"></p>
   </div>
 
   <div id="game-screen" class="hidden">
     
-    <div id="canvas-container"></div>
-    
-    <div id="game-controls">
-      <h3 id="turn-indicator">Opponent's Turn</h3>
-      <button id="shake-button" class="game-btn">Shake</button>
-      <button id="roll-button" class="game-btn primary" disabled>Roll (3)</button>
-      <button id="score-tab-button" class="game-btn tab">☰ Scores</button>
-    </div>
-
-  </div>
-
-  <div id="score-sheet">
-    <div id="score-header">
-      <button id="score-sheet-close">×</button>
-      <h3>Score Sheet</h3>
-    </div>
-    
-    <div class="score-column-container">
-      <div id="my-score-column" class="score-column">
-        <h4>My Score (<span id="my-total-score">0</span>)</h4>
-        <div classid="my-upper-section">
-          <h5>Upper (<span id="my-upper-total">0</span>/63)</h5>
-          <div class="score-category" id="my-aces" data-category="aces">Aces <span>-</span></div>
-          <div class="score-category" id="my-twos" data-category="twos">Twos <span>-</span></div>
-          <div class="score-category" id="my-threes" data-category="threes">Threes <span>-</span></div>
-          <div class="score-category" id="my-fours" data-category="fours">Fours <span>-</span></div>
-          <div class="score-category" id="my-fives" data-category="fives">Fives <span>-</span></div>
-          <div class="score-category" id="my-sixes" data-category="sixes">Sixes <span>-</span></div>
-          <div class="score-subtotal" id="my-upper-bonus">Bonus <span>+0</span></div>
-        </div>
-        <div classid="my-lower-section">
-          <h5>Lower (<span id="my-lower-total">0</span>)</h5>
-          <div class="score-category" id="my-four_of_a_kind" data-category="four_of_a_kind">4 of a Kind <span>-</span></div>
-          <div class="score-category" id="my-full_house" data-category="full_house">Full House <span>-</span></div>
-          <div class="score-category" id="my-small_straight" data-category="small_straight">Sm. Straight <span>-</span></div>
-          <div class="score-category" id="my-large_straight" data-category="large_straight">Lg. Straight <span>-</span></div>
-          <div class="score-category" id="my-yacht" data-category="yacht">Yacht <span>-</span></div>
-          <div class="score-category" id="my-chance" data-category="chance">Chance <span>-</span></div>
-        </div>
+    <div id="score-sheet">
+      
+      <div id="score-header-row">
+        <span class="col-category">항목</span>
+        <span class="col-my-score" id="my-score-header-label">나의 점수</span>
+        <span class="col-opp-score" id="opp-score-header-label">상대 점수</span>
       </div>
       
-      <div id="opponent-score-column" class="score-column">
-        <h4>Opponent (<span id="opp-total-score">0</span>)</h4>
-        <div classid="opp-upper-section">
-          <h5>Upper (<span id="opp-upper-total">0</span>/63)</h5>
-          <div class="score-category" id="opp-aces">Aces <span>-</span></div>
-          <div class="score-category" id="opp-twos">Twos <span>-</span></div>
-          <div class="score-category" id="opp-threes">Threes <span>-</span></div>
-          <div class="score-category" id="opp-fours">Fours <span>-</span></div>
-          <div class="score-category" id="opp-fives">Fives <span>-</span></div>
-          <div class="score-category" id="opp-sixes">Sixes <span>-</span></div>
-          <div class="score-subtotal" id="opp-upper-bonus">Bonus <span>+0</span></div>
+      <div id="score-table-body">
+        
+        <div class="score-section-header">
+          <span>Upper ( /63)</span>
+          <span id="my-upper-total">0</span>
+          <span id="opp-upper-total">0</span>
         </div>
-        <div classid="opp-lower-section">
-          <h5>Lower (<span id="opp-lower-total">0</span>)</h5>
-          <div class="score-category" id="opp-four_of_a_kind">4 of a Kind <span>-</span></div>
-          <div class="score-category" id="opp-full_house">Full House <span>-</span></div>
-          <div class="score-category" id="opp-small_straight">Sm. Straight <span>-</span></div>
-          <div class="score-category" id="opp-large_straight">Lg. Straight <span>-</span></div>
-          <div class="score-category" id="opp-yacht">Yacht <span>-</span></div>
-          <div class="score-category" id="opp-chance">Chance <span>-</span></div>
+        
+        <div class="score-category" data-category="aces">
+          <span class="col-category">에이스</span>
+          <span class="col-my-score" id="my-aces">-</span>
+          <span class="col-opp-score" id="opp-aces">-</span>
         </div>
-      </div>
-    </div>
-  </div>
+        <div class="score-category" data-category="twos">
+          <span class="col-category">듀스</span>
+          <span class="col-my-score" id="my-twos">-</span>
+          <span class="col-opp-score" id="opp-twos">-</span>
+        </div>
+        <div class="score-category" data-category="threes">
+          <span class="col-category">트라이</span>
+          <span class="col-my-score" id="my-threes">-</span>
+          <span class="col-opp-score" id="opp-threes">-</span>
+        </div>
+        <div class="score-category" data-category="fours">
+          <span class="col-category">포</span>
+          <span class="col-my-score" id="my-fours">-</span>
+          <span class="col-opp-score" id="opp-fours">-</span>
+        </div>
+        <div class="score-category" data-category="fives">
+          <span class="col-category">파이브</span>
+          <span class="col-my-score" id="my-fives">-</span>
+          <span class="col-opp-score" id="opp-fives">-</span>
+        </div>
+        <div class="score-category" data-category="sixes">
+          <span class="col-category">식스</span>
+          <span class="col-my-score" id="my-sixes">-</span>
+          <span class="col-opp-score" id="opp-sixes">-</span>
+        </div>
 
-</body>
+        <div class="score-subtotal" data-category="bonus">
+          <span class="col-category">보너스</span>
+          <span class="col-my-score" id="my-upper-bonus">+0</span>
+          <span class="col-opp-score" id="opp-upper-bonus">+0</span>
+        </div>
+
+        <div class="score-section-header">
+          <span>Lower</span>
+          <span id="my-lower-total">0</span>
+          <span id="opp-lower-total">0</span>
+        </div>
+
+        <div class="score-category" data-category="four_of_a_kind">
+          <span class="col-category">포 다이스</span>
+          <span class="col-my-score" id="my-four_of_a_kind">-</span>
+          <span class="col-opp-score" id="opp-four_of_a_kind">-</span>
+        </div>
+        <div class="score-category" data-category="full_house">
+          <span class="col-category">풀 하우스</span>
+          <span class="col-my-score" id="my-full_house">-</span>
+          <span class="col-opp-score" id="opp-full_house">-</span>
+        </div>
+        <div class="score-category" data-category="small_straight">
+          <span class="col-category">S. 스트레이트</span>
+          <span class="col-my-score" id="my-small_straight">-</span>
+          <span class="col-opp-score" id="opp-small_straight">-</span>
+        </div>
+        <div class="score-category" data-category="large_straight">
+          <span class="col-category">L. 스트레이트</span>
+          <span class="col-my-score" id="my-large_straight">-</span>
+          <span class="col-opp-score" id="opp-large_straight">-</span>
+        </div>
+        <div class="score-category" data-category="yacht">
+          <span class="col-category">요트</span>
+          <span class="col-my-score" id="my-yacht">-</span>
+          <span class="col-opp-score" id="opp-yacht">-</span>
+        </div>
+        <div class="score-category" data-category="chance">
+          <span class="col-category">초이스</span>
+          <span class="col-my-score" id="my-chance">-</span>
+          <span class="col-opp-score" id="opp-chance">-</span>
+        </div>
+
+        <div class="score-total" data-category="total">
+          <span class="col-category">총점</span>
+          <span class="col-my-score" id="my-total-score">0</span>
+          <span class="col-opp-score" id="opp-total-score">0</span>
+        </div>
+
+      </div>
+    </div> <div id="game-area">
+      <div id="canvas-container"></div>
+      
+      <div id="game-controls">
+        <h3 id="turn-indicator">상대 차례</h3>
+        <button id="roll-button" class="game-btn primary" disabled>굴리기 (3)</button>
+      </div>
+    </div> </div> </body>
 </html>

@@ -9,6 +9,31 @@
   <link rel="icon" type="image/png" sizes="16x16" href="/static/favicon-16x16.png">
   <link rel="manifest" href="/static/site.webmanifest">
 <style>
+    /* --- START: NEW CHANGES --- */
+
+    /* 1. Mobile Toolbar/Button sizing */
+    @media (max-width: 767px) { /* md breakpoint */
+      /* Fix search bar overflow */
+      #toolbar-card > .flex-col > .flex.items-center {
+        width: 100%;
+      }
+      #search {
+        flex: 1 1 auto; /* Allow input to grow and shrink */
+        min-width: 50px; /* Prevent it from disappearing */
+      }
+      /* Make toolbar buttons smaller */
+      #toolbar-card .mt-3 .btn,
+      #toolbar-card .mt-3 label.btn {
+        padding: 0.375rem 0.5rem;  /* 6px 8px padding */
+        font-size: 0.875rem;     /* 14px font */
+        border-radius: 0.5rem;   /* 8px radius */
+      }
+      #btn-up {
+        padding: 0.375rem; /* 6px square-ish padding */
+      }
+    }
+    /* --- END: NEW CHANGES --- */
+
     /* --- Core & Variables --- */
     :root {
       --border: #e5e7eb; --muted: #f8fafc; --ink: #0f172a; --ink-2-rgb: 51, 65, 85; /* Changed for rgba() */ --accent: #0ea5e9; --accent-2: #0284c7; --warn: #dc2626; --selected-bg: #e0f2fe; --selected-border: #7dd3fc;
@@ -27,10 +52,10 @@
     .max-w-sm { max-width: 24rem; }
     .max-w-6xl { max-width: 72rem; }
     .mx-auto { margin-left: auto; margin-right: auto; }
-    .min-h-70vh { min-height: 70vh; } /* CHANGE: Renamed .min-h-[70vh] */
+    .min-h-70vh { min-height: 70vh; }
     .space-y-4 > :not([hidden]) ~ :not([hidden]) { margin-top: 1rem; }
-    .p-2-5 { padding: 0.625rem; } .p-3 { padding: 0.75rem; } .p-4 { padding: 1rem; } .p-6 { padding: 1.5rem; } .p-8 { padding: 2rem; } /* CHANGE: Renamed .p-2.5 */
-    .px-3 { padding-left: 0.75rem; padding-right: 0.75rem; } .py-1-5 { padding-top: 0.375rem; padding-bottom: 0.375rem; } .py-2 { padding-top: 0.5rem; padding-bottom: 0.5rem; } /* CHANGE: Renamed .py-1.5 */
+    .p-2-5 { padding: 0.625rem; } .p-3 { padding: 0.75rem; } .p-4 { padding: 1rem; } .p-6 { padding: 1.5rem; } .p-8 { padding: 2rem; }
+    .px-3 { padding-left: 0.75rem; padding-right: 0.75rem; } .py-1-5 { padding-top: 0.375rem; padding-bottom: 0.375rem; } .py-2 { padding-top: 0.5rem; padding-bottom: 0.5rem; }
     .mt-1 { margin-top: 0.25rem; } .mt-2 { margin-top: 0.5rem; } .mt-3 { margin-top: 0.75rem; }
     .mb-1 { margin-bottom: 0.25rem; } .mb-6 { margin-bottom: 1.5rem; }
     .flex { display: flex; } .inline-flex { display: inline-flex; }
@@ -42,6 +67,32 @@
     .grid { display: grid; }
     .grid-cols-12 { grid-template-columns: repeat(12, minmax(0, 1fr)); }
     .col-span-2 { grid-column: span 2 / span 2; } .col-span-3 { grid-column: span 3 / span 3; } .col-span-7 { grid-column: span 7 / span 7; }
+    
+    .md-col-span-2 { grid-column: span 2 / span 2; }
+    .md-col-span-3 { grid-column: span 3 / span 3; }
+    .md-col-span-7 { grid-column: span 7 / span 7; }
+    .col-span-12 { grid-column: span 12 / span 12; }
+    .md-block { display: block; }
+    .md-flex { display: flex; }
+    @media (max-width: 767px) {
+        .md-col-span-2, .md-col-span-3, .md-col-span-7 {
+            grid-column: inherit; /* Reset on mobile */
+        }
+        .md-block, .md-flex {
+            display: none; /* Hide on mobile */
+        }
+        .col-span-12 {
+            grid-column: span 12 / span 12;
+        }
+    }
+    @media (min-width: 768px) {
+        .md-col-span-2 { grid-column: span 2 / span 2; }
+        .md-col-span-3 { grid-column: span 3 / span 3; }
+        .md-col-span-7 { grid-column: span 7 / span 7; }
+        .md-block { display: block; }
+        .md-flex { display: flex; }
+    }
+
     @media (min-width: 640px) { .sm\:grid-cols-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
     @media (min-width: 768px) { .md\:flex-row { flex-direction: row; } .md\:inline { display: inline; } .md\:p-4 { padding: 1rem; } .md\:p-6 { padding: 1.5rem; } .md\:p-8 { padding: 2rem; } .md\:grid-cols-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
     @media (min-width: 1024px) { .lg\:grid-cols-5 { grid-template-columns: repeat(5, minmax(0, 1fr)); } }
@@ -52,11 +103,9 @@
     .font-semibold { font-weight: 600; }
     .text-center { text-align: center; }
     
-    /* CHANGE: Replaced Tailwind-specific text color classes */
     .text-ink { color: var(--ink); }
     .text-ink-2-70 { color: rgba(var(--ink-2-rgb), 0.7); }
 
-    /* CHANGE: Replaced Tailwind focus ring utilities with a standard alternative */
     .focus-ring:focus {
       outline: 2px solid transparent;
       outline-offset: 2px;
@@ -69,8 +118,21 @@
     #toolbar-card { overflow: visible; }
     .shadow-soft{ box-shadow: 0 10px 30px rgba(0,0,0,.06); }
     .input { display: block; background:#fff; border:1px solid var(--border); border-radius:12px; }
-    .btn { padding: 0.5rem 0.75rem; border-radius: 0.75rem; border:1px solid var(--border); background:#fff; transition-property: background-color; transition-duration: 150ms; }
-    .btn:hover { background: var(--muted); }
+    
+    /* --- MODIFIED .btn and .btn:hover --- */
+    .btn { 
+        padding: 0.5rem 0.75rem; 
+        border-radius: 0.75rem; 
+        border:1px solid var(--border); 
+        background: linear-gradient(to bottom, #ffffff, #f0f0f0); 
+        transition-property: background-color; 
+        transition-duration: 150ms; 
+    }
+    .btn:hover { 
+        background: linear-gradient(to bottom, #f5f5f5, #e0e0e0); 
+    }
+    /* --- END MODIFICATION --- */
+
     .btn-primary { background: var(--accent); color:white; border-color:var(--accent); }
     .btn-primary:hover { background: var(--accent-2); }
     .btn-danger { background: var(--warn); color:white; border-color:var(--warn); }
@@ -165,7 +227,6 @@
           <a class="new-doc-option" data-ext="pptx">PowerPoint Presentation (.pptx)</a>
           </div>
       </div>
-        <button id="btn-toggle-select" class="px-3 py-2 rounded-xl btn hidden">Select</button>
         <label class="px-3 py-2 rounded-xl btn cursor-pointer">
           ＋ Add files<input id="file" type="file" class="hidden" multiple>
         </label>
@@ -177,7 +238,6 @@
             <button id="sel-del" class="btn btn-danger">Delete</button>
             <button id="sel-clear" class="btn">Clear</button>
         </div>
-        <span id="cwd" class="text-xs text-[var(--ink-2)]/70"></span>
         <button id="btn-logout-mobile" class="md:hidden btn ml-auto">Logout</button>
       </div>
     </section>
@@ -203,7 +263,6 @@
     const CLICK_DELAY = 250; // ms, reduced for snappier single clicks
 
     const listEl = document.getElementById('list');
-    const cwdEl  = document.getElementById('cwd');
     const crumbsEl = document.getElementById('crumbs');
     const ctx    = document.getElementById('ctx');
     const queueWrap = document.getElementById('queue-wrap');
@@ -224,7 +283,7 @@
 
     let selected = new Set();
     let lastAnchorIndex = null;
-    let selectMode = false; // <-- ADD THIS
+    let selectMode = false; // <-- This will be managed by touch logic
 
     const isTouch = ('ontouchstart' in window) || window.matchMedia('(pointer: coarse)').matches;
 
@@ -273,610 +332,688 @@
     document.getElementById('view-grid').onclick = ()=>{ viewMode='grid'; renderList(); };
     document.getElementById('view-list').onclick = ()=>{ viewMode='list'; renderList(); };
 
-function fmtBytes(b){ if(b===0) return "0 B"; const u=['B','KB','MB','GB','TB']; let i=0; while(b>=1024&&i<u.length-1){b/=1024;i++;} return `${b.toFixed(i === 0 ? 0 : 1)} ${u[i]}`; }
+    function fmtBytes(b){ if(b===0) return "0 B"; const u=['B','KB','MB','GB','TB']; let i=0; while(b>=1024&&i<u.length-1){b/=1024;i++;} return `${b.toFixed(i === 0 ? 0 : 1)} ${u[i]}`; }
 
-function buildCrumbs(p){
-  const parts = (p||'/').split('/').filter(Boolean);
-  crumbsEl.innerHTML='';
-  const push = (html)=>{ const span=document.createElement('span'); span.innerHTML=html; crumbsEl.appendChild(span); };
-  push(`<a class="text-[var(--accent-2)] hover:underline" data-jump="/">Home</a>`);
-  let acc = '';
-  parts.forEach((seg)=>{
-    acc += '/'+seg;
-    push(`<span class="opacity-50">›</span>`);
-    push(`<a class="hover:underline" data-jump="${acc}">${seg}</a>`);
-  });
-  crumbsEl.querySelectorAll('[data-jump]').forEach(a=>{
-    a.addEventListener('click', (e)=>{ e.preventDefault(); clearSelection(); load(a.getAttribute('data-jump')); });
-  });
-}
-
-searchEl.addEventListener('input', ()=> renderList());
-
-async function load(path, push=true){
-  try {
-    const j = await api('/api/list?path='+encodeURIComponent(path||''));
-    currentPath = (j.type==='dir' ? j.path : path);
-    cwdEl.textContent = 'Path: ' + (currentPath||'/');
-    buildCrumbs(currentPath||'/');
-
-    if(j.type==='file'){
-      openPreview(j.path);
-      return;
+    function buildCrumbs(p){
+      const parts = (p||'/').split('/').filter(Boolean);
+      crumbsEl.innerHTML='';
+      const push = (html)=>{ const span=document.createElement('span'); span.innerHTML=html; crumbsEl.appendChild(span); };
+      push(`<a class="text-[var(--accent-2)] hover:underline" data-jump="/">Home</a>`);
+      let acc = '';
+      parts.forEach((seg)=>{
+        acc += '/'+seg;
+        push(`<span class="opacity-50">›</span>`);
+        push(`<a class="hover:underline" data-jump="${acc}">${seg}</a>`);
+      });
+      crumbsEl.querySelectorAll('[data-jump]').forEach(a=>{
+        a.addEventListener('click', (e)=>{ e.preventDefault(); clearSelection(); load(a.getAttribute('data-jump')); });
+      });
     }
-    currentItems = j.items || [];
-    selected.clear(); updateSelUI();
-    renderList();
 
-    if (push) {
-      const qs = currentPath==='/' ? '' : '?path='+encodeURIComponent(currentPath);
-      history.pushState({path: currentPath}, '', location.pathname + qs);
-    }
-  } catch(ex) {
-    alert('Error loading path: ' + ex.message);
-  }
-}
+    searchEl.addEventListener('input', ()=> renderList());
 
-function downloadSelectedSequential(){
-  const items = filteredItems();
-  const paths = currentSelectionArray()
-    .map(p => ({ p, it: items.find(i=>i.path===p) }))
-    .filter(x => x.it && x.it.type === 'file')
-    .map(x => x.p);
+    async function load(path, push=true){
+      try {
+        const j = await api('/api/list?path='+encodeURIComponent(path||''));
+        currentPath = (j.type==='dir' ? j.path : path);
+        buildCrumbs(currentPath||'/');
 
-  if (paths.length === 0) return;
-
-  if (paths.length === 1) {
-    const a = document.createElement('a');
-    a.href = '/api/download?path=' + encodeURIComponent(paths[0]);
-    a.download = '';
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    return;
-  }
-
-  ensureDlFrame();
-  let i = 0;
-  const step = () => {
-    if (i >= paths.length) return;
-    dlFrame.src = '/api/download?path=' + encodeURIComponent(paths[i++]);
-    setTimeout(step, 700);
-  };
-  step();
-}
-
-function filteredItems(){
-  const q = searchEl.value?.toLowerCase().trim() || '';
-  return q ? currentItems.filter(it => it.name.toLowerCase().includes(q)) : currentItems;
-}
-
-/* === TEMPLATES === */
-function rowTemplate(it, idx){
-  const d = new Date(it.mtime*1000).toLocaleString();
-  const isSel = selected.has(it.path);
-  return `<div class="row grid grid-cols-12 px-3 py-2 cursor-default ${isSel?'selected':''}" data-index="${idx}" data-path="${it.path}" data-type="${it.type}">
-    <div class="col-span-12 md:col-span-7 flex items-center gap-2 truncate">
-      ${isSel?'<span class="badge">✓</span>':''}
-      ${it.type==='dir'?'📁':'📄'} <span class="truncate">${it.name}</span>
-    </div>
-    <div class="hidden md:block md:col-span-2">${it.type==='dir'?'—':fmtBytes(it.size)}</div>
-    <div class="hidden md:flex col-span-3 items-center justify-between">
-      <span class="text-[var(--ink-2)]/70">${d}</span>
-    </div>
-  </div>`;
-}
-
-function tileTemplate(it, idx){
-  const d = new Date(it.mtime*1000).toLocaleDateString();
-  const icon = it.type==='dir'?'📁':'📄';
-  const isSel = selected.has(it.path);
-  return `<div class="tile relative group rounded-2xl card p-3 shadow-subtle transition ${isSel?'selected':''}"
-              data-index="${idx}" data-path="${it.path}" data-type="${it.type}">
-    ${isSel?'<div class="badge">✓</div>':''}
-    <div class="flex items-start justify-between">
-      <div class="text-3xl">${icon}</div>
-    </div>
-    <div class="mt-2 font-medium truncate" title="${it.name}">${it.name}</div>
-    <div class="text-xs text-[var(--ink-2)]/70 mt-1">${it.type==='dir'?'Folder':fmtBytes(it.size)} • ${d}</div>
-  </div>`;
-}
-
-function renderList(){
-  const items = filteredItems();
-  items.sort((a,b) => {
-    if (a.type === 'dir' && b.type !== 'dir') return -1;
-    if (a.type !== 'dir' && b.type === 'dir') return 1;
-    return a.name.localeCompare(b.name, undefined, { numeric: true });
-  });
-
-  if(viewMode==='list'){
-    let html = `<div class="grid grid-cols-12 bg-[var(--muted)] px-3 py-2 text-sm font-semibold border-b">
-      <div class="col-span-7">Name</div><div class="col-span-2">Size</div><div class="col-span-3">Modified</div></div>`;
-    html += items.map((it,i)=>rowTemplate(it,i)).join('');
-    listEl.innerHTML = html;
-    listEl.className = 'card shadow-soft';
-  } else {
-    const grid = items.map((it,i)=>tileTemplate(it,i)).join('');
-    listEl.innerHTML = `<div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">${grid}</div>`;
-    listEl.className = 'card shadow-soft p-3';
-  }
-}
-
-function itemFromEvent(e){
-  const el = e.target.closest('[data-path]');
-  if(!el) return null;
-  const path = el.dataset.path;
-  const items = filteredItems();
-  const idx = items.findIndex(it => it.path === path);
-  if (idx === -1) return null;
-  return { el, idx, item: items[idx] };
-}
-
-/* ===== Selection & UI ===== */
-function updateSelUI(){
-  const n = selected.size;
-  if(n>0){
-    selWrap.classList.remove('hidden');
-    selCount.textContent = `${n} selected`;
-  } else {
-    selWrap.classList.add('hidden');
-    selCount.textContent = '';
-  }
-  const items = filteredItems();
-  const hasDir = [...selected].some(p => (items.find(i=>i.path===p)?.type === 'dir'));
-  selDl.classList.toggle('disabled', selected.size === 0 || hasDir);
-}
-function clearSelection(){ selected.clear(); updateSelUI(); renderList(); }
-function selectToggle(path){ selected.has(path) ? selected.delete(path) : selected.add(path); updateSelUI(); }
-function selectRange(fromIdx, toIdx){
-  const items = filteredItems();
-  const [a,b] = fromIdx < toIdx ? [fromIdx,toIdx] : [toIdx,fromIdx];
-  for(let i=a;i<=b;i++){ selected.add(items[i].path); }
-  updateSelUI();
-}
-
-/* ===== Context Menu ===== */
-function openCtx(path, x, y, type){
-  if(selected.size > 0 && !selected.has(path)){ selected.clear(); selected.add(path); updateSelUI(); renderList(); }
-  const items = filteredItems();
-  const selPaths = selected.size ? [...selected] : [path];
-  const hasDir = selPaths.some(p => items.find(i=>i.path===p)?.type === 'dir');
-  ctxTarget = { path, type };
-  ctx.innerHTML = `
-    <a onclick="openItem()">Open / Preview</a>
-    <a ${hasDir ? 'class="disabled"' : ''} onclick="downloadSelectedSequential()">Download</a>
-    <a onclick="shareItem()">Share…</a>
-    <a onclick="renameItem()">Rename…</a>
-    <a onclick="propsItem()">Properties</a>
-    <hr>
-    <a onclick="moveItem()">Move…</a>
-    <a onclick="copyItem()">Copy…</a>
-    <a onclick="deleteItem()" style="color:var(--warn)">Delete</a>`;
-  const menuWidth = ctx.offsetWidth;
-  const menuHeight = ctx.offsetHeight;
-  const winWidth = window.innerWidth;
-  const winHeight = window.innerHeight;
-  ctx.style.left = (x + menuWidth > winWidth ? winWidth - menuWidth - 5 : x) + 'px';
-  ctx.style.top  = (y + menuHeight > winHeight ? winHeight - menuHeight - 5 : y) + 'px';
-  ctx.style.display='block';
-}
-
-document.addEventListener('click', (e)=>{ if(!ctx.contains(e.target)) ctx.style.display='none'; });
-
-// *** NEW *** Kebab menu click listener
-listEl.addEventListener('click', (e) => {
-    const kebab = e.target.closest('[data-menu]');
-    if (!kebab) return;
-    const h = itemFromEvent(e);
-    if (!h) return;
-    const rect = kebab.getBoundingClientRect();
-    openCtx(h.item.path, rect.left, rect.bottom, h.item.type);
-});
-
-/* ===== Desktop interactions ===== */
-listEl.addEventListener('dblclick', (e)=>{
-  if (isTouch) return;
-  if (clickTimer) { clearTimeout(clickTimer); clickTimer = null; }
-  const h = itemFromEvent(e); if (!h) return;
-  if (h.item.type === 'dir') load(h.item.path); else openPreview(h.item.path);
-});
-
-listEl.addEventListener('click', (e)=>{
-  if (isTouch) return;
-  if (e.target.closest('[data-menu]')) return;
-  const h = itemFromEvent(e); if (!h) return;
-  if (clickTimer) clearTimeout(clickTimer);
-  clickTimer = setTimeout(()=>{
-    if (e.shiftKey && lastAnchorIndex != null) {
-      selectRange(lastAnchorIndex, h.idx);
-    } else if (e.ctrlKey || e.metaKey) {
-      selectToggle(h.item.path);
-      lastAnchorIndex = h.idx;
-    } else {
-      selected.clear();
-      selected.add(h.item.path);
-      lastAnchorIndex = h.idx;
-    }
-    updateSelUI();
-    renderList();
-    clickTimer = null;
-  }, CLICK_DELAY);
-});
-
-listEl.addEventListener('contextmenu', (e)=>{
-  e.preventDefault();
-  const h = itemFromEvent(e);
-  if(!h){ ctx.style.display='none'; return; }
-  openCtx(h.item.path, e.pageX, e.pageY, h.item.type);
-});
-
-
-/* ===== New Touch Logic ===== */
-const btnToggleSelect = document.getElementById('btn-toggle-select');
-if (isTouch) {
-  // Show the "Select" button on touch devices
-  btnToggleSelect.classList.remove('hidden'); 
-  
-  btnToggleSelect.addEventListener('click', () => {
-    selectMode = !selectMode;
-    // Use 'btn-primary' style to show it's active
-    btnToggleSelect.classList.toggle('btn-primary', selectMode); 
-    btnToggleSelect.textContent = selectMode ? 'Done' : 'Select';
-    if (!selectMode) {
-      clearSelection();
-    }
-  });
-
-  let touchTimer = null;
-  let touchMoved = false;
-
-  listEl.addEventListener('touchstart', (e) => {
-    touchMoved = false;
-    const h = itemFromEvent(e); if (!h) return;
-    const t = e.touches[0];
-    const x = t.clientX + window.scrollX, y = t.clientY + window.scrollY;
-    
-    touchTimer = setTimeout(() => {
-      // Long press: open context menu
-      touchTimer = null; // prevent click
-      
-      // Select the item on long press if it's not already
-      if(!selected.has(h.item.path)) { 
-        selected.clear(); 
-        selected.add(h.item.path); 
-        updateSelUI(); 
-        renderList(); 
-      }
-      openCtx(h.item.path, x, y, h.item.type);
-    }, 500); // 500ms for long press
-  }, {passive:true});
-
-  listEl.addEventListener('touchmove', () => {
-    // If finger moves, cancel long press (user is scrolling)
-    if (touchTimer) clearTimeout(touchTimer);
-    touchTimer = null;
-    touchMoved = true;
-  }, {passive:true});
-
-  listEl.addEventListener('touchend', (e) => {
-    if (touchMoved) return; // Don't register click if user was scrolling
-    if (touchTimer) {
-      // This was a short tap
-      clearTimeout(touchTimer);
-      touchTimer = null;
-      e.preventDefault(); // prevent ghost click
-      
-      const h = itemFromEvent(e.target); if (!h) return;
-
-      if (selectMode) {
-        // In select mode, tap toggles selection
-        selectToggle(h.item.path);
-        updateSelUI();
+        if(j.type==='file'){
+          openPreview(j.path);
+          return;
+        }
+        currentItems = j.items || [];
+        selected.clear(); updateSelUI();
         renderList();
-      } else {
-        // Not in select mode, tap opens item
-        if (h.item.type === 'dir') load(h.item.path); else openPreview(h.item.path);
+
+        if (push) {
+          const qs = currentPath==='/' ? '' : '?path='+encodeURIComponent(currentPath);
+          history.pushState({path: currentPath}, '', location.pathname + qs);
+        }
+      } catch(ex) {
+        alert('Error loading path: ' + ex.message);
       }
     }
-    // If touchTimer is null, long press already fired, so do nothing on touchend
-  });
-}
 
-/* ===== Keyboard niceties (desktop) ===== */
-document.addEventListener('keydown', (e)=>{
-  if(isTouch || e.target.tagName === 'INPUT') return;
-  if(e.key === 'Enter' && selected.size === 1){
-    const p = [...selected][0];
-    const it = filteredItems().find(i=>i.path===p);
-    if(it){ if(it.type==='dir') load(p); else openPreview(p); }
-  }
-  if(e.key === 'a' && (e.ctrlKey || e.metaKey)){
-    e.preventDefault();
-    const items = filteredItems();
-    items.forEach(it => selected.add(it.path));
-    updateSelUI();
-    renderList();
-  }
-});
+    function downloadSelectedSequential(){
+      const items = filteredItems();
+      const paths = currentSelectionArray()
+        .map(p => ({ p, it: items.find(i=>i.path===p) }))
+        .filter(x => x.it && x.it.type === 'file')
+        .map(x => x.p);
 
-/* ===== History ===== */
-window.addEventListener('popstate', (e)=>{
-  const p = e.state?.path || '/';
-  clearSelection();
-  load(p, false);
-});
+      if (paths.length === 0) return;
 
-/* ===== Preview modal ===== */
-const previewEl    = document.getElementById('preview');
-const previewBody  = document.getElementById('preview-body');
-const previewTitle = document.getElementById('preview-title');
-const previewClose = document.getElementById('preview-close');
-
-function showPreview(title, innerHTML){
-  previewTitle.textContent = title || '';
-  previewBody.innerHTML = innerHTML;
-  previewEl.classList.remove('hidden');
-}
-function closePreview(){
-  previewBody.querySelectorAll('[data-bloburl]').forEach(n => { URL.revokeObjectURL(n.getAttribute('data-bloburl')); });
-  previewEl.classList.add('hidden');
-  previewBody.innerHTML = '';
-}
-previewClose.onclick = closePreview;
-previewEl.addEventListener('click', (e)=>{ if(e.target === previewEl) closePreview(); });
-document.addEventListener('keydown', (e)=>{ if(e.key === 'Escape') closePreview(); });
-
-async function blobURL(url){
-  const res = await fetch(url);
-  if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
-  const blob = await res.blob();
-  return URL.createObjectURL(blob);
-}
-function escapeHTML(str){
-  return str.replace(/[&<>"']/g, s=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[s]));
-}
-async function openPreview(path){
-  const ext = (path.split('.').pop() || '').toLowerCase();
-  const rawUrl = '/api/download?path='+encodeURIComponent(path);
-
-  const OFFICE_EXTS = ['doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'odt', 'ods', 'odp'];
-  if (OFFICE_EXTS.includes(ext)) {
-    // Open our new editor page in a new tab
-    window.open('/editor/' + encodeURIComponent(path), '_blank');
-    return; // Stop the rest of the function
-  }
-  
-  try{
-    if(['png','jpg','jpeg','gif','webp','bmp','svg'].includes(ext)){
-      const u = await blobURL(rawUrl);
-      showPreview(path, `<img src="${u}" data-bloburl="${u}" class="max-h-[80vh] mx-auto rounded">`); return;
-    }
-    if(['mp4','webm','m4v','mov'].includes(ext)){
-      const u = await blobURL(rawUrl);
-      showPreview(path, `<video src="${u}" data-bloburl="${u}" controls autoplay class="max-h-[80vh] mx-auto rounded"></video>`); return;
-    }
-    if(['mp3','wav','ogg','m4a','flac'].includes(ext)){
-      const u = await blobURL(rawUrl);
-      showPreview(path, `<audio src="${u}" data-bloburl="${u}" controls autoplay class="w-full"></audio>`); return;
-    }
-    if(['txt','srt','ass','md','json','log','csv','html','css','js'].includes(ext)){
-      const res = await fetch(rawUrl); const text = await res.text();
-      showPreview(path, `<pre class="whitespace-pre-wrap text-left text-sm bg-[var(--muted)] p-3 rounded border">${escapeHTML(text)}</pre>`); return;
-    }
-    window.open(rawUrl,'_blank');
-  }catch(ex){ alert(`Could not preview file: ${ex.message}`); window.open(rawUrl,'_blank'); }
-}
-
-/* ===== Uploads (queue + drag overlay) ===== */
-const fileInput = document.getElementById('file');
-const dropzone = document.getElementById('dropzone');
-fileInput.addEventListener('change', ()=> { enqueueFiles([...fileInput.files]); fileInput.value = ''; });
-['dragenter','dragover'].forEach(evt=>{
-  window.addEventListener(evt, e=>{ e.preventDefault(); dropzone.classList.add('show'); });
-});
-['dragleave','drop'].forEach(evt=>{
-  window.addEventListener(evt, e=>{ e.preventDefault(); dropzone.classList.remove('show'); });
-});
-window.addEventListener('drop', (e)=>{
-  if (e.target !== dropzone) return;
-  const files = [...(e.dataTransfer?.files || [])];
-  if(files.length) enqueueFiles(files);
-});
-let queue = []; let uploading = false;
-function toastRow(name){
-  const wrap = document.createElement('div');
-  wrap.className = 'pointer-events-auto card rounded-2xl p-3 shadow-soft';
-  wrap.innerHTML = `<div class="text-sm truncate">${name}</div>
-    <div class="mt-2 w-full h-2 bg-[var(--muted)] rounded"><div class="h-2 bg-[var(--accent)] rounded" style="width:0%"></div></div>
-    <div class="text-right text-xs mt-1 opacity-80">0%</div>`;
-  queueWrap.appendChild(wrap);
-  return { wrap, bar: wrap.children[1].firstChild, pct: wrap.children[2] };
-}
-function enqueueFiles(files){
-  files.forEach(f=>{
-    const row = toastRow(f.name);
-    queue.push({file:f, ...row});
-  });
-  if(!uploading) processQueue();
-}
-async function processQueue(){ uploading=true; while(queue.length){ const item=queue.shift(); await uploadOne(item); } uploading=false; await load(currentPath); }
-function uploadOne(item){
-  return new Promise((resolve)=>{
-    const fd = new FormData(); fd.append('file', item.file);
-    const xhr = new XMLHttpRequest();
-    xhr.open('POST', '/api/upload?path='+encodeURIComponent(currentPath));
-    xhr.upload.onprogress = (e)=>{ if(!e.lengthComputable) return; const p=Math.round(e.loaded/e.total*100); item.bar.style.width=p+'%'; item.pct.textContent=p+'%'; };
-    xhr.onload = ()=>{ item.bar.style.width='100%'; item.pct.textContent = (xhr.status>=200&&xhr.status<300)?'Done':'Error'; setTimeout(()=> item.wrap.remove(), 1800); resolve(); };
-    xhr.onerror = ()=>{ item.pct.textContent='Error'; setTimeout(()=> item.wrap.remove(), 2200); resolve(); };
-    xhr.send(fd);
-  });
-}
-
-const newDocBtn = document.getElementById('btn-new-doc');
-const newDocMenu = document.getElementById('new-doc-menu');
-
-newDocBtn.onclick = () => {
-    newDocMenu.classList.toggle('hidden');
-};
-
-// Hide menu if clicking elsewhere, but not on the button itself
-document.addEventListener('click', (e) => {
-    const wrapper = document.getElementById('new-doc-wrapper');
-    if (!wrapper.contains(e.target)) {
-    newDocMenu.classList.add('hidden');
-    }
-});
-
-newDocMenu.querySelectorAll('.new-doc-option').forEach(el => {
-    el.onclick = () => {
-    newDocMenu.classList.add('hidden');
-    const ext = el.dataset.ext;
-    createNewDocument(ext);
-    };
-});
-
-/* Up & mkdir */
-document.getElementById('btn-up').onclick = ()=>{
-  if(!currentPath || currentPath === '/') return;
-  const parent = currentPath.split('/').slice(0,-1).join('/') || '/';
-  clearSelection();
-  load(parent);
-};
-document.getElementById('btn-mkdir').onclick = mkdirHere;
-
-/* --- Add this new function --- */
-async function createNewDocument(ext) {
-    let defaultName = `New Document.${ext}`;
-    if (ext === 'xlsx') defaultName = `New Spreadsheet.${ext}`;
-    if (ext === 'pptx') defaultName = `New Presentation.${ext}`;
-
-    const name = prompt('New file name:', defaultName);
-    if (!name || !name.trim()) return;
-
-    if (!name.endsWith('.' + ext)) {
-        alert('Filename must end with .' + ext);
+      if (paths.length === 1) {
+        const a = document.createElement('a');
+        a.href = '/api/download?path=' + encodeURIComponent(paths[0]);
+        a.download = '';
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
         return;
+      }
+
+      ensureDlFrame();
+      let i = 0;
+      const step = () => {
+        if (i >= paths.length) return;
+        dlFrame.src = '/api/download?path=' + encodeURIComponent(paths[i++]);
+        setTimeout(step, 700);
+      };
+      step();
     }
 
-    try {
-    const j = await api('/api/create_new_doc', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ parent: currentPath, name: name })
+    function filteredItems(){
+      const q = searchEl.value?.toLowerCase().trim() || '';
+      return q ? currentItems.filter(it => it.name.toLowerCase().includes(q)) : currentItems;
+    }
+    function getFileIcon(item) {
+      if (item.type === 'dir') {
+        return '📁'; // Folder
+      }
+      
+      // Get file extension
+      const ext = (item.name.split('.').pop() || '').toLowerCase();
+
+      // --- YOUR REQUESTED CHANGE IS HERE ---
+      // Office documents and others you want as a disk
+      if (['docx', 'doc', 'xlsx', 'xls', 'pptx', 'ppt', 'odt', 'ods', 'odp', 'pdf'].includes(ext)) {
+        return '💾'; // Disk emoji
+      }
+      // --- END OF YOUR CHANGE ---
+
+      // You can customize other icons here too
+      if (['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'svg'].includes(ext)) {
+        return '🖼️'; // Image
+      }
+      if (['mp4', 'webm', 'm4v', 'mov', 'avi', 'mkv'].includes(ext)) {
+        return '🎬'; // Video
+      }
+      if (['mp3', 'wav', 'ogg', 'm4a', 'flac'].includes(ext)) {
+        return '🎵'; // Audio
+      }
+      if (['zip', 'rar', '7z', 'tar', 'gz'].includes(ext)) {
+        return '📦'; // Archive
+      }
+      if (['txt', 'md', 'json', 'log', 'csv', 'html', 'css', 'js'].includes(ext)) {
+        return '📝'; // Text/Code
+      }
+
+      // Default file
+      return '📄'; 
+    }
+    /* === TEMPLATES === */
+    function rowTemplate(it, idx){
+      const d = new Date(it.mtime*1000).toLocaleString();
+      const isSel = selected.has(it.path);
+      // START: MODIFIED - Added md-col-span-* classes
+      return `<div class="row grid grid-cols-12 px-3 py-2 cursor-default ${isSel?'selected':''}" data-index="${idx}" data-path="${it.path}" data-type="${it.type}">
+        
+        <div class="col-span-12 md-col-span-7 flex items-center gap-2 overflow-hidden"> ${isSel ? '<span class="badge flex-shrink-0">✓</span>' : '<span class="flex-shrink-0" style="width: 1rem;"></span>'} 
+          
+          <span class="flex-shrink-0">${getFileIcon(it)}</span> <span class="truncate" title="${it.name}">${it.name}</span>
+
+        </div>
+        <div class="hidden md-block md-col-span-2">${it.type==='dir'?'—':fmtBytes(it.size)}</div>
+        <div class="hidden md-flex md-col-span-3 items-center justify-between">
+          <span class="text-[var(--ink-2)]/70">${d}</span>
+        </div>
+      </div>`;
+      // END: MODIFIED
+    }
+
+    function tileTemplate(it, idx){
+      const d = new Date(it.mtime*1000).toLocaleDateString();
+      const icon = getFileIcon(it);
+      const isSel = selected.has(it.path);
+      return `<div class="tile relative group rounded-2xl card p-3 shadow-subtle transition ${isSel?'selected':''}"
+                  data-index="${idx}" data-path="${it.path}" data-type="${it.type}">
+        ${isSel?'<div class="badge">✓</div>':''}
+        <div class="flex items-start justify-between">
+          <div class="text-3xl">${icon}</div>
+        </div>
+        <div class="mt-2 font-medium truncate" title="${it.name}">${it.name}</div>
+        <div class="text-xs text-[var(--ink-2)]/70 mt-1">${it.type==='dir'?'Folder':fmtBytes(it.size)} • ${d}</div>
+      </div>`;
+    }
+
+    function renderList(){
+      const items = filteredItems();
+      items.sort((a,b) => {
+        if (a.type === 'dir' && b.type !== 'dir') return -1;
+        if (a.type !== 'dir' && b.type === 'dir') return 1;
+        return a.name.localeCompare(b.name, undefined, { numeric: true });
+      });
+
+      if(viewMode==='list'){
+        // START: MODIFIED - Added responsive classes to header
+        let html = `<div class="grid grid-cols-12 bg-[var(--muted)] px-3 py-2 text-sm font-semibold border-b">
+          <div class="col-span-12 md-col-span-7">Name</div>
+          <div class="hidden md-block md-col-span-2">Size</div>
+          <div class="hidden md-block md-col-span-3">Modified</div>
+        </div>`;
+        // END: MODIFIED
+        html += items.map((it,i)=>rowTemplate(it,i)).join('');
+        listEl.innerHTML = html;
+        listEl.className = 'card shadow-soft';
+      } else {
+        const grid = items.map((it,i)=>tileTemplate(it,i)).join('');
+        listEl.innerHTML = `<div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">${grid}</div>`;
+        listEl.className = 'card shadow-soft p-3';
+      }
+    }
+
+    function itemFromEvent(e){
+      const el = e.target.closest('[data-path]');
+      if(!el) return null;
+      const path = el.dataset.path;
+      const items = filteredItems();
+      const idx = items.findIndex(it => it.path === path);
+      if (idx === -1) return null;
+      return { el, idx, item: items[idx] };
+    }
+
+    /* ===== Selection & UI ===== */
+    function updateSelUI(){
+      const n = selected.size;
+      selectMode = (n > 0);
+      if(n>0){
+        selWrap.classList.remove('hidden');
+        selCount.textContent = `${n} selected`;
+      } else {
+        selWrap.classList.add('hidden');
+        selCount.textContent = '';
+      }
+      const items = filteredItems();
+      const hasDir = [...selected].some(p => (items.find(i=>i.path===p)?.type === 'dir'));
+      selDl.classList.toggle('disabled', selected.size === 0 || hasDir);
+    }
+    function clearSelection(){ 
+      selected.clear(); 
+      updateSelUI(); 
+      renderList(); 
+    }
+    function selectToggle(path){ selected.has(path) ? selected.delete(path) : selected.add(path); updateSelUI(); }
+    function selectRange(fromIdx, toIdx){
+      const items = filteredItems();
+      const [a,b] = fromIdx < toIdx ? [fromIdx,toIdx] : [toIdx,fromIdx];
+      for(let i=a;i<=b;i++){ selected.add(items[i].path); }
+      updateSelUI();
+    }
+
+    /* ===== Context Menu ===== */
+    function openCtx(path, x, y, type){
+      if(selected.size > 0 && !selected.has(path)){ selected.clear(); selected.add(path); updateSelUI(); renderList(); }
+      const items = filteredItems();
+      const selPaths = selected.size ? [...selected] : [path];
+      const hasDir = selPaths.some(p => items.find(i=>i.path===p)?.type === 'dir');
+      ctxTarget = { path, type };
+      ctx.innerHTML = `
+        <a onclick="openItem()">Open / Preview</a>
+        <a ${hasDir ? 'class="disabled"' : ''} onclick="downloadSelectedSequential()">Download</a>
+        <a onclick="shareItem()">Share…</a>
+        <a onclick="renameItem()">Rename…</a>
+        <a onclick="propsItem()">Properties</a>
+        <hr>
+        <a onclick="moveItem()">Move…</a>
+        <a onclick="copyItem()">Copy…</a>
+        <a onclick="deleteItem()" style="color:var(--warn)">Delete</a>`;
+      const menuWidth = ctx.offsetWidth;
+      const menuHeight = ctx.offsetHeight;
+      const winWidth = window.innerWidth;
+      const winHeight = window.innerHeight;
+      ctx.style.left = (x + menuWidth > winWidth ? winWidth - menuWidth - 5 : x) + 'px';
+      ctx.style.top  = (y + menuHeight > winHeight ? winHeight - menuHeight - 5 : y) + 'px';
+      ctx.style.display='block';
+    }
+
+    document.addEventListener('click', (e)=>{ 
+      if(!ctx.contains(e.target)) ctx.style.display='none'; 
+      // START: MODIFIED - Click on empty space clears selection
+      if (selectMode && !e.target.closest('[data-path]')) {
+        clearSelection();
+      }
+      // END: MODIFIED
     });
 
-    // Success! Refresh list and open editor
-    await load(currentPath); // Refresh the file list
-    // Use the relative path returned from the API
-    window.open('/editor/' + encodeURIComponent(j.path), '_blank');
+    // *** NEW *** Kebab menu click listener
+    listEl.addEventListener('click', (e) => {
+        const kebab = e.target.closest('[data-menu]');
+        if (!kebab) return;
+        const h = itemFromEvent(e);
+        if (!h) return;
+        const rect = kebab.getBoundingClientRect();
+        openCtx(h.item.path, rect.left, rect.bottom, h.item.type);
+    });
 
-    } catch (ex) {
-    alert('Error creating file: ' + ex.message);
+    /* ===== Desktop interactions ===== */
+    listEl.addEventListener('dblclick', (e)=>{
+      if (isTouch) return;
+      if (clickTimer) { clearTimeout(clickTimer); clickTimer = null; }
+      const h = itemFromEvent(e); if (!h) return;
+      if (h.item.type === 'dir') load(h.item.path); else openPreview(h.item.path);
+    });
+
+    listEl.addEventListener('click', (e)=>{
+      if (isTouch) return;
+      if (e.target.closest('[data-menu]')) return;
+      const h = itemFromEvent(e); if (!h) return;
+      if (clickTimer) clearTimeout(clickTimer);
+      clickTimer = setTimeout(()=>{
+        if (e.shiftKey && lastAnchorIndex != null) {
+          selectRange(lastAnchorIndex, h.idx);
+        } else if (e.ctrlKey || e.metaKey) {
+          selectToggle(h.item.path);
+          lastAnchorIndex = h.idx;
+        } else {
+          selected.clear();
+          selected.add(h.item.path);
+          lastAnchorIndex = h.idx;
+        }
+        updateSelUI();
+        renderList();
+        clickTimer = null;
+      }, CLICK_DELAY);
+    });
+
+    listEl.addEventListener('contextmenu', (e)=>{
+      e.preventDefault();
+      const h = itemFromEvent(e);
+      if(!h){ ctx.style.display='none'; return; }
+      openCtx(h.item.path, e.pageX, e.pageY, h.item.type);
+    });
+
+
+    /* ===== START: NEW TOUCH LOGIC ===== */
+    if (isTouch) {
+      let touchTimer = null;
+      let touchMoved = false;
+      let startTargetItem = null; // Store the item we started touching
+      const LONG_PRESS_DURATION = 500; // 500ms for long press
+
+      listEl.addEventListener('touchstart', (e) => {
+        touchMoved = false;
+        startTargetItem = itemFromEvent(e); // Get the item at the start
+        
+        // If we didn't tap an item, do nothing.
+        if (!startTargetItem) return;
+
+        const t = e.touches[0];
+        const x = t.clientX, y = t.clientY;
+
+        // Start a timer to check for a long press
+        longPressTimer = setTimeout(() => {
+          // --- LONG PRESS FIRED ---
+          longPressTimer = null; // Mark timer as fired
+          const h = startTargetItem;
+          if (!h) return;
+
+          if (h.item.type === 'file') {
+            // Rule 3: Long touch on file -> select file & enter select mode
+            selectToggle(h.item.path);
+            // updateSelUI() will automatically set selectMode = true
+            updateSelUI();
+            renderList();
+          } else {
+            // Rule 5: Long touch on folder -> pop up menu
+            openCtx(h.item.path, x, y, h.item.type);
+          }
+        }, LONG_PRESS_DURATION);
+
+      }, { passive: true });
+
+      listEl.addEventListener('touchmove', () => {
+        // If finger moves, it's a scroll, not a tap or long press
+        if (longPressTimer) clearTimeout(longPressTimer);
+        longPressTimer = null;
+        touchMoved = true;
+      }, { passive: true });
+
+      listEl.addEventListener('touchend', (e) => {
+        // Don't do anything if we scrolled
+        if (touchMoved) {
+          startTargetItem = null; // Clear stored item
+          return; 
+        }
+
+        const h = startTargetItem; // Use the item from touchstart
+        
+        if (longPressTimer) {
+          // --- SHORT TAP (TIMER DIDN'T FIRE) ---
+          clearTimeout(longPressTimer);
+          longPressTimer = null;
+          
+          if (!h) return; // Make sure we still have an item
+          e.preventDefault(); // Prevent ghost clicks / double actions
+
+          if (selectMode) {
+            // Rule 4: In select mode, tap toggles selection
+            selectToggle(h.item.path);
+            updateSelUI();
+            renderList();
+          } else {
+            // Not in select mode
+            if (h.item.type === 'dir') {
+              // Rule 1: Single touch on folder -> goto folder
+              load(h.item.path);
+            } else {
+              // Rule 2: Single touch on file -> popup menu
+              const t = e.changedTouches[0];
+              openCtx(h.item.path, t.clientX, t.clientY, h.item.type);
+            }
+          }
+        }
+        // If longPressTimer is null, long press already fired, so do nothing on touchend
+        
+        startTargetItem = null; // Clear stored item
+      });
+
+      // Rule 4b: single touch on empty space (outside the list) to release all files
+      document.addEventListener('touchstart', (e) => {
+        // Check if we are in select mode AND the tap was *not* on a file/folder item
+        if (selectMode && !e.target.closest('[data-path]')) {
+          clearSelection();
+        }
+      }, true); // Use capture phase to catch this tap anywhere
     }
-}
+    /* ===== END: NEW TOUCH LOGIC ===== */
 
-/* Actions (single or multi) */
-function currentSelectionArray(){
-  if(selected.size>0) return Array.from(selected);
-  return ctxTarget ? [ctxTarget.path] : [];
-}
-function openItem(){
-  const paths = currentSelectionArray();
-  if(paths.length !== 1){ alert('Open/Preview is for a single item.'); return; }
-  const p = paths[0];
-  const it = filteredItems().find(i=>i.path===p) || {type:'file'};
-  if(it.type==='dir') load(p); else openPreview(p);
-}
-async function propsItem(){
-  const paths = currentSelectionArray();
-  if(paths.length !== 1){ alert('Select exactly one item to view properties.'); return; }
-  const j=await api('/api/properties?path='+encodeURIComponent(paths[0]));
-  alert(`${j.type.toUpperCase()}\nName: ${j.name}\nSize: ${fmtBytes(j.size)}\nMIME: ${j.mime||''}\nModified: ${new Date(j.mtime*1000)}`);
-}
-async function mkdirHere(){
-  const name=prompt('Folder name:'); if(!name || !name.trim()) return;
-  await api('/api/mkdir',{method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({parent: currentPath, name})});
-  load(currentPath);
-}
-async function renameItem(){
-  const paths = currentSelectionArray();
-  if(paths.length !== 1){ alert('Select exactly one item to rename.'); return; }
-  ctx.style.display='none';
-  const src = paths[0];
-  const trimmedSrc = src.replace(/\/+$/, '') || '/';
-  if(trimmedSrc === '/'){ alert('Cannot rename the root.'); return; }
-  const lastSlash = trimmedSrc.lastIndexOf('/');
-  const parent = lastSlash <= 0 ? '/' : trimmedSrc.slice(0, lastSlash);
-  const currentName = trimmedSrc.slice(lastSlash + 1);
-  const newName = prompt('New name:', currentName);
-  if(newName === null || !newName.trim()){ return; }
-  if(newName.includes('/')){ alert('Name cannot contain "/" characters.'); return; }
-  if(newName === currentName) return;
-  const dst = (parent === '/' ? '' : parent) + '/' + newName;
-  try{
-    await api('/api/move',{method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({src, dst})});
-    clearSelection();
-    ctxTarget = null;
-    load(currentPath);
-  }catch(ex){ alert('Rename failed: ' + ex.message); }
-}
-async function deleteItem(){
-  const paths = currentSelectionArray(); if(paths.length===0) return;
-  if(!confirm(`Delete ${paths.length} item(s)? This cannot be undone.`)) return;
-  for(const p of paths){
-    await api('/api/delete',{method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({path: p})});
-  }
-  clearSelection(); load(currentPath);
-}
-async function moveItem(){
-  const paths = currentSelectionArray(); if(paths.length===0) return;
-  const dst=prompt('Move to path (relative to root):', currentPath); if(dst === null) return;
-  for(const p of paths){
-    await api('/api/move',{method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({src: p, dst})});
-  }
-  clearSelection(); load(currentPath);
-}
-async function copyItem(){
-  const paths = currentSelectionArray(); if(paths.length===0) return;
-  const dst=prompt('Copy to path (relative to root):', currentPath); if(dst === null) return;
-  for(const p of paths){
-    await api('/api/copy',{method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({src: p, dst})});
-  }
-  clearSelection(); load(currentPath);
-}
-async function shareItem(){
-  const paths = currentSelectionArray();
-  if(paths.length !== 1){ alert('Share works on one item at a time.'); return; }
-  const hours = prompt('Expires in hours (0 = never):', '0');
-  if (hours === null) return;
-  try {
-    const j = await api('/api/share', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({path: paths[0], expires_hours: Number(hours || 0)}) });
-    const url = new URL(j.url, window.location.origin).toString();
-    const copyToClipboard = (text) => {
-      if (navigator.clipboard && window.isSecureContext) { return navigator.clipboard.writeText(text); }
-      else {
-        let ta = document.createElement("textarea");
-        ta.value = text; ta.style.position="fixed"; ta.style.left="-9999px";
-        document.body.appendChild(ta); ta.select();
-        return new Promise((res, rej) => { document.execCommand('copy') ? res() : rej(); ta.remove(); });
+
+    /* ===== Keyboard niceties (desktop) ===== */
+    document.addEventListener('keydown', (e)=>{
+      if(isTouch || e.target.tagName === 'INPUT') return;
+      if(e.key === 'Enter' && selected.size === 1){
+        const p = [...selected][0];
+        const it = filteredItems().find(i=>i.path===p);
+        if(it){ if(it.type==='dir') load(p); else openPreview(p); }
       }
+      if(e.key === 'a' && (e.ctrlKey || e.metaKey)){
+        e.preventDefault();
+        const items = filteredItems();
+        items.forEach(it => selected.add(it.path));
+        updateSelUI();
+        renderList();
+      }
+    });
+
+    /* ===== History ===== */
+    window.addEventListener('popstate', (e)=>{
+      const p = e.state?.path || '/';
+      clearSelection();
+      load(p, false);
+    });
+
+    /* ===== Preview modal ===== */
+    const previewEl    = document.getElementById('preview');
+    const previewBody  = document.getElementById('preview-body');
+    const previewTitle = document.getElementById('preview-title');
+    const previewClose = document.getElementById('preview-close');
+
+    function showPreview(title, innerHTML){
+      previewTitle.textContent = title || '';
+      previewBody.innerHTML = innerHTML;
+      previewEl.classList.remove('hidden');
+    }
+    function closePreview(){
+      previewBody.querySelectorAll('[data-bloburl]').forEach(n => { URL.revokeObjectURL(n.getAttribute('data-bloburl')); });
+      previewEl.classList.add('hidden');
+      previewBody.innerHTML = '';
+    }
+    previewClose.onclick = closePreview;
+    previewEl.addEventListener('click', (e)=>{ if(e.target === previewEl) closePreview(); });
+    document.addEventListener('keydown', (e)=>{ if(e.key === 'Escape') closePreview(); });
+
+    async function blobURL(url){
+      const res = await fetch(url);
+      if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
+      const blob = await res.blob();
+      return URL.createObjectURL(blob);
+    }
+    function escapeHTML(str){
+      return str.replace(/[&<>"']/g, s=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[s]));
+    }
+    async function openPreview(path){
+      const ext = (path.split('.').pop() || '').toLowerCase();
+      const rawUrl = '/api/download?path='+encodeURIComponent(path);
+
+      const OFFICE_EXTS = ['doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'odt', 'ods', 'odp'];
+      if (OFFICE_EXTS.includes(ext)) {
+        // Open our new editor page in a new tab
+        window.open('/editor/' + encodeURIComponent(path), '_blank');
+        return; // Stop the rest of the function
+      }
+      
+      try{
+        if(['png','jpg','jpeg','gif','webp','bmp','svg'].includes(ext)){
+          const u = await blobURL(rawUrl);
+          showPreview(path, `<img src="${u}" data-bloburl="${u}" class="max-h-[80vh] mx-auto rounded">`); return;
+        }
+        if(['mp4','webm','m4v','mov'].includes(ext)){
+          const u = await blobURL(rawUrl);
+          showPreview(path, `<video src="${u}" data-bloburl="${u}" controls autoplay class="max-h-[80vh] mx-auto rounded"></video>`); return;
+        }
+        if(['mp3','wav','ogg','m4a','flac'].includes(ext)){
+          const u = await blobURL(rawUrl);
+          showPreview(path, `<audio src="${u}" data-bloburl="${u}" controls autoplay class="w-full"></audio>`); return;
+        }
+        if(['txt','srt','ass','md','json','log','csv','html','css','js'].includes(ext)){
+          const res = await fetch(rawUrl); const text = await res.text();
+          showPreview(path, `<pre class="whitespace-pre-wrap text-left text-sm bg-[var(--muted)] p-3 rounded border">${escapeHTML(text)}</pre>`); return;
+        }
+        window.open(rawUrl,'_blank');
+      }catch(ex){ alert(`Could not preview file: ${ex.message}`); window.open(rawUrl,'_blank'); }
+    }
+
+    /* ===== Uploads (queue + drag overlay) ===== */
+    const fileInput = document.getElementById('file');
+    const dropzone = document.getElementById('dropzone');
+    fileInput.addEventListener('change', ()=> { enqueueFiles([...fileInput.files]); fileInput.value = ''; });
+    ['dragenter','dragover'].forEach(evt=>{
+      window.addEventListener(evt, e=>{ e.preventDefault(); dropzone.classList.add('show'); });
+    });
+    ['dragleave','drop'].forEach(evt=>{
+      window.addEventListener(evt, e=>{ e.preventDefault(); dropzone.classList.remove('show'); });
+    });
+    window.addEventListener('drop', (e)=>{
+      if (e.target !== dropzone) return;
+      const files = [...(e.dataTransfer?.files || [])];
+      if(files.length) enqueueFiles(files);
+    });
+    let queue = []; let uploading = false;
+    function toastRow(name){
+      const wrap = document.createElement('div');
+      wrap.className = 'pointer-events-auto card rounded-2xl p-3 shadow-soft';
+      wrap.innerHTML = `<div class="text-sm truncate">${name}</div>
+        <div class="mt-2 w-full h-2 bg-[var(--muted)] rounded"><div class="h-2 bg-[var(--accent)] rounded" style="width:0%"></div></div>
+        <div class="text-right text-xs mt-1 opacity-80">0%</div>`;
+      queueWrap.appendChild(wrap);
+      return { wrap, bar: wrap.children[1].firstChild, pct: wrap.children[2] };
+    }
+    function enqueueFiles(files){
+      files.forEach(f=>{
+        const row = toastRow(f.name);
+        queue.push({file:f, ...row});
+      });
+      if(!uploading) processQueue();
+    }
+    async function processQueue(){ uploading=true; while(queue.length){ const item=queue.shift(); await uploadOne(item); } uploading=false; await load(currentPath); }
+    function uploadOne(item){
+      return new Promise((resolve)=>{
+        const fd = new FormData(); fd.append('file', item.file);
+        const xhr = new XMLHttpRequest();
+        xhr.open('POST', '/api/upload?path='+encodeURIComponent(currentPath));
+        xhr.upload.onprogress = (e)=>{ if(!e.lengthComputable) return; const p=Math.round(e.loaded/e.total*100); item.bar.style.width=p+'%'; item.pct.textContent=p+'%'; };
+        xhr.onload = ()=>{ item.bar.style.width='100%'; item.pct.textContent = (xhr.status>=200&&xhr.status<300)?'Done':'Error'; setTimeout(()=> item.wrap.remove(), 1800); resolve(); };
+        xhr.onerror = ()=>{ item.pct.textContent='Error'; setTimeout(()=> item.wrap.remove(), 2200); resolve(); };
+        xhr.send(fd);
+      });
+    }
+
+    const newDocBtn = document.getElementById('btn-new-doc');
+    const newDocMenu = document.getElementById('new-doc-menu');
+
+    newDocBtn.onclick = () => {
+        newDocMenu.classList.toggle('hidden');
     };
-    copyToClipboard(url)
-      .then(() => alert('Share link copied to clipboard!\n' + url))
-      .catch(() => alert('Could not copy link. Please copy it manually:\n' + url));
-  } catch (ex) { alert('Error creating share link: ' + ex.message); }
-};
 
-selDl.addEventListener('click', (e)=>{ if (selDl.classList.contains('disabled')) return; downloadSelectedSequential(); });
-selMv.addEventListener('click',  moveItem);
-selCp.addEventListener('click',  copyItem);
-selDel.addEventListener('click', deleteItem);
-selClear.addEventListener('click', clearSelection);
+    // Hide menu if clicking elsewhere, but not on the button itself
+    document.addEventListener('click', (e) => {
+        const wrapper = document.getElementById('new-doc-wrapper');
+        if (!wrapper.contains(e.target)) {
+        newDocMenu.classList.add('hidden');
+        }
+    });
 
-/* Initial load */
-history.replaceState({ path: startPath || '/' }, '', location.search || (startPath==='/'?'':'?path='+encodeURIComponent(startPath)));
-load(startPath, false);
-</script>
+    newDocMenu.querySelectorAll('.new-doc-option').forEach(el => {
+        el.onclick = () => {
+        newDocMenu.classList.add('hidden');
+        const ext = el.dataset.ext;
+        createNewDocument(ext);
+        };
+    });
+
+    /* Up & mkdir */
+    document.getElementById('btn-up').onclick = ()=>{
+      if(!currentPath || currentPath === '/') return;
+      const parent = currentPath.split('/').slice(0,-1).join('/') || '/';
+      clearSelection();
+      load(parent);
+    };
+    document.getElementById('btn-mkdir').onclick = mkdirHere;
+
+    /* --- Add this new function --- */
+    async function createNewDocument(ext) {
+        let defaultName = `New Document.${ext}`;
+        if (ext === 'xlsx') defaultName = `New Spreadsheet.${ext}`;
+        if (ext === 'pptx') defaultName = `New Presentation.${ext}`;
+
+        const name = prompt('New file name:', defaultName);
+        if (!name || !name.trim()) return;
+
+        if (!name.endsWith('.' + ext)) {
+            alert('Filename must end with .' + ext);
+            return;
+        }
+
+        try {
+        const j = await api('/api/create_new_doc', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ parent: currentPath, name: name })
+        });
+
+        // Success! Refresh list and open editor
+        await load(currentPath); // Refresh the file list
+        // Use the relative path returned from the API
+        window.open('/editor/' + encodeURIComponent(j.path), '_blank');
+
+        } catch (ex) {
+        alert('Error creating file: ' + ex.message);
+        }
+    }
+
+    /* Actions (single or multi) */
+    function currentSelectionArray(){
+      if(selected.size>0) return Array.from(selected);
+      return ctxTarget ? [ctxTarget.path] : [];
+    }
+    function openItem(){
+      const paths = currentSelectionArray();
+      if(paths.length !== 1){ alert('Open/Preview is for a single item.'); return; }
+      const p = paths[0];
+      const it = filteredItems().find(i=>i.path===p) || {type:'file'};
+      if(it.type==='dir') load(p); else openPreview(p);
+    }
+    async function propsItem(){
+      const paths = currentSelectionArray();
+      if(paths.length !== 1){ alert('Select exactly one item to view properties.'); return; }
+      const j=await api('/api/properties?path='+encodeURIComponent(paths[0]));
+      alert(`${j.type.toUpperCase()}\nName: ${j.name}\nSize: ${fmtBytes(j.size)}\nMIME: ${j.mime||''}\nModified: ${new Date(j.mtime*1000)}`);
+    }
+    async function mkdirHere(){
+      const name=prompt('Folder name:'); if(!name || !name.trim()) return;
+      await api('/api/mkdir',{method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({parent: currentPath, name})});
+      load(currentPath);
+    }
+    async function renameItem(){
+      const paths = currentSelectionArray();
+      if(paths.length !== 1){ alert('Select exactly one item to rename.'); return; }
+      ctx.style.display='none';
+      const src = paths[0];
+      const trimmedSrc = src.replace(/\/+$/, '') || '/';
+      if(trimmedSrc === '/'){ alert('Cannot rename the root.'); return; }
+      const lastSlash = trimmedSrc.lastIndexOf('/');
+      const parent = lastSlash <= 0 ? '/' : trimmedSrc.slice(0, lastSlash);
+      const currentName = trimmedSrc.slice(lastSlash + 1);
+      const newName = prompt('New name:', currentName);
+      if(newName === null || !newName.trim()){ return; }
+      if(newName.includes('/')){ alert('Name cannot contain "/" characters.'); return; }
+      if(newName === currentName) return;
+      const dst = (parent === '/' ? '' : parent) + '/' + newName;
+      try{
+        await api('/api/move',{method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({src, dst})});
+        clearSelection();
+        ctxTarget = null;
+        load(currentPath);
+      }catch(ex){ alert('Rename failed: ' + ex.message); }
+    }
+    async function deleteItem(){
+      const paths = currentSelectionArray(); if(paths.length===0) return;
+      if(!confirm(`Delete ${paths.length} item(s)? This cannot be undone.`)) return;
+      for(const p of paths){
+        await api('/api/delete',{method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({path: p})});
+      }
+      clearSelection(); load(currentPath);
+    }
+    async function moveItem(){
+      const paths = currentSelectionArray(); if(paths.length===0) return;
+      const dst=prompt('Move to path (relative to root):', currentPath); if(dst === null) return;
+      for(const p of paths){
+        await api('/api/move',{method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({src: p, dst})});
+      }
+      clearSelection(); load(currentPath);
+    }
+    async function copyItem(){
+      const paths = currentSelectionArray(); if(paths.length===0) return;
+      const dst=prompt('Copy to path (relative to root):', currentPath); if(dst === null) return;
+      for(const p of paths){
+        await api('/api/copy',{method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({src: p, dst})});
+      }
+      clearSelection(); load(currentPath);
+    }
+    async function shareItem(){
+      const paths = currentSelectionArray();
+      if(paths.length !== 1){ alert('Share works on one item at a time.'); return; }
+      const hours = prompt('Expires in hours (0 = never):', '0');
+      if (hours === null) return;
+      try {
+        const j = await api('/api/share', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({path: paths[0], expires_hours: Number(hours || 0)}) });
+        const url = new URL(j.url, window.location.origin).toString();
+        const copyToClipboard = (text) => {
+          if (navigator.clipboard && window.isSecureContext) { return navigator.clipboard.writeText(text); }
+          else {
+            let ta = document.createElement("textarea");
+            ta.value = text; ta.style.position="fixed"; ta.style.left="-9999px";
+            document.body.appendChild(ta); ta.select();
+            return new Promise((res, rej) => { document.execCommand('copy') ? res() : rej(); ta.remove(); });
+          }
+        };
+        copyToClipboard(url)
+          .then(() => alert('Share link copied to clipboard!\n' + url))
+          .catch(() => alert('Could not copy link. Please copy it manually:\n' + url));
+      } catch (ex) { alert('Error creating share link: ' + ex.message); }
+    };
+
+    selDl.addEventListener('click', (e)=>{ if (selDl.classList.contains('disabled')) return; downloadSelectedSequential(); });
+    selMv.addEventListener('click',  moveItem);
+    selCp.addEventListener('click',  copyItem);
+    selDel.addEventListener('click', deleteItem);
+    selClear.addEventListener('click', clearSelection);
+
+    /* Initial load */
+    history.replaceState({ path: startPath || '/' }, '', location.search || (startPath==='/'?'':'?path='+encodeURIComponent(startPath)));
+    load(startPath, false);
+  </script>
 </body>
 </html>
